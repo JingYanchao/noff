@@ -2,8 +2,8 @@
 // Created by frabk on 17-4-10.
 //
 
-#ifndef MUDUO_CAPTURE_H
-#define MUDUO_CAPTURE_H
+#ifndef NOFF_CAPTURE_H
+#define NOFF_CAPTURE_H
 
 #include <pcap.h>
 #include <functional>
@@ -65,4 +65,4 @@ private:
 };
 
 
-#endif //MUDUO_CAPTURE_H
+#endif //NOFF_CAPTURE_H
