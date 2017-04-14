@@ -70,7 +70,7 @@ int main()
         // block until enough packets received
         cap->startLoop(20);
 
-        // break loop and
+        // break loop(if still running) and close capture
         delete cap;
     }
 }
