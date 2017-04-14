@@ -12,7 +12,7 @@
 using std::placeholders::_1;
 using std::placeholders::_2;
 
-Capture::Capture(const char *device, int snaplen, int promisc, int msTimeout)
+Capture::Capture(const char *device, int snaplen, bool promisc, int msTimeout)
         :pcap_(NULL),
          device_(device),
          filter_(),
@@ -26,10 +26,10 @@ Capture::Capture(const char *device, int snaplen, int promisc, int msTimeout)
 
     // may warning
     if (pcap_ != NULL && errBuf_[0] != '\0') {
-        LOG_WARN << "capture " << errBuf_;
+        LOG_WARN << "Capture " << errBuf_;
     }
     if (pcap_ == NULL) {
-        LOG_ERROR << "capture " << errBuf_;
+        LOG_ERROR << "Capture " << errBuf_;
         exit(1);
     }
 
@@ -48,8 +48,7 @@ Capture::Capture(const char *device, int snaplen, int promisc, int msTimeout)
             break;
         case PCAP_ERROR_NOT_ACTIVATED:
             // can never happen
-            LOG_FATAL << "capture " << device_
-                      << ": not activated";
+            LOG_FATAL << "Capture: not activated";
             break;
         default:
             LOG_ERROR << "capture " << device_
@@ -58,11 +57,10 @@ Capture::Capture(const char *device, int snaplen, int promisc, int msTimeout)
             exit(1);
     }
 
-    LOG_INFO << "capture " << device_
-             << ": open, link type " << linkTypeStr;
+    LOG_DEBUG << "Capture: open, link type " << linkTypeStr;
 
     addPacketCallBack(std::bind(
-            &Capture::onRecvPacket, this, _1, _2));
+            &Capture::onPacket, this, _1, _2));
 }
 
 Capture::~Capture()
@@ -73,8 +71,7 @@ Capture::~Capture()
 
     pcap_close(pcap_);
 
-    LOG_INFO << "capture " << device_
-             << ": stopped";
+    LOG_INFO << "Capture: stopped";
 }
 
 void Capture::startLoop(int packetCount)
@@ -82,25 +79,22 @@ void Capture::startLoop(int packetCount)
     assert(!running_);
     running_ = true;
 
-    LOG_INFO << "capture " << device_ << ": started";
+    LOG_INFO << "Capture: started, link type " << linkTypeStr;
 
     int err = pcap_loop(pcap_, packetCount, internalCallBack, reinterpret_cast<u_char*>(this));
     switch (err) {
         case 0:
-            LOG_INFO << "capture " << device_
-                     << ": break loop on " << packetCount
-                     << " packet";
+            LOG_INFO << "Capture: break loop on "
+                     << packetCount << " packet";
             break;
         case -1:
-            LOG_ERROR << "capture " << pcap_geterr(pcap_);
+            LOG_ERROR << "Capture " << pcap_geterr(pcap_);
             break;
         case -2:
-            LOG_INFO << "capture "<< device_
-                     << ": break loop by user";
+            LOG_INFO << "Capture: break loop by user";
             break;
         default:
-            LOG_FATAL << "capture " << device_
-                      <<": break loop by unknown error";
+            LOG_FATAL << "Capture: break loop, unknown error(" << err << ")";
             break;
     }
 
@@ -134,17 +128,15 @@ void Capture::logCaptureStats()
 {
     pcap_stat stat;
     pcap_stats(pcap_, &stat);
-    LOG_INFO << "capture " << device_
-             << ": receive packet " << stat.ps_recv
+    LOG_INFO << "Capture: receive packet " << stat.ps_recv
              << ", drop by kernel " << stat.ps_drop
              << ", drop by filter " << stat.ps_ifdrop;
 }
 
-void Capture::onRecvPacket(const pcap_pkthdr *hdr, const u_char *data)
+void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data)
 {
-    if (hdr->caplen < linkOffset) {
-        LOG_WARN << "capture " << device_
-                 << ": packet length too short";
+    if (hdr->caplen <= linkOffset) {
+        LOG_WARN << "Capture: packet too short";
         return;
     }
 
@@ -152,35 +144,33 @@ void Capture::onRecvPacket(const pcap_pkthdr *hdr, const u_char *data)
 
         case DLT_EN10MB:
             if (data[12] != 0x08 || data[13] != 0x00) {
-                LOG_DEBUG << "capture " << device_
-                          << ": receive none IP packet";
+                LOG_DEBUG << "Capture: receive none IP packet";
                 return;
             }
             break;
 
         case DLT_LINUX_SLL:
             if (data[14] != 0x08 || data[15] != 0x00) {
-                LOG_DEBUG << "capture " << device_
-                          << ": receive none IP packet";
+                LOG_DEBUG << "Capture: receive none IP packet";
                 return;
             }
             break;
 
         default:
             // never happened
-            LOG_FATAL << "capture " << device_
-                      << ": receive unsupported packet";
+            LOG_FATAL << "Capture: receive unsupported packet";
             return;
     }
 
     for (auto& func : ipFragmentCallbacks_) {
-        func(reinterpret_cast<const ip*>(data),
+        func((ip*)(data + linkOffset),
              hdr->caplen - linkOffset);
     }
 }
 
 void Capture::internalCallBack(u_char *user, const struct pcap_pkthdr *hdr, const u_char *data)
 {
+
     Capture *cap = reinterpret_cast<Capture*>(user);
 
     for (auto& func : cap->packetCallbacks_) {
