@@ -1,0 +1,150 @@
+//
+// Created by root on 17-4-13.
+//
+
+#include <netinet/in.h>
+#include <netinet/udp.h>
+#include <netinet/tcp.h>
+#include <netinet/ip_icmp.h>
+
+#include <muduo/base/Logging.h>
+#include <muduo/base/Exception.h>
+
+#include "Dispatcher.h"
+#include "Sharding.h"
+
+namespace
+{
+
+struct Ports {
+    u_int16_t srcPort;
+    u_int16_t dstPort;
+};
+
+Ports getPorts(const ip *hdr, int len)
+{
+    u_int16_t   srcPort, dstPort;
+    u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
+
+    len -= 4 * hdr->ip_hl;
+    assert(len >= 0);
+
+    switch (hdr->ip_p) {
+
+        case IPPROTO_TCP:
+        {
+            tcphdr *tcp = (tcphdr*)data;
+
+            if (len < (int)sizeof(tcphdr)) {
+                throw muduo::Exception("TCP header too short");
+            }
+
+            srcPort = tcp->th_sport;
+            dstPort = tcp->th_dport;
+        }
+            break;
+        case IPPROTO_UDP:
+        {
+            udphdr *udp = (udphdr*)data;
+
+            if (len < (int)sizeof(udphdr)) {
+                throw muduo::Exception("UDP header too short");
+            }
+
+            srcPort = udp->uh_sport;
+            dstPort = udp->uh_dport;
+        }
+            break;
+        case IPPROTO_ICMP:
+            // FIXME: choose a constant port number for sharding?
+            srcPort = dstPort = 928;
+            break;
+        default:
+            throw muduo::Exception("unsupported protocol");
+    }
+
+    return { srcPort, dstPort };
+}
+
+Sharding shard;
+};
+
+
+Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSize)
+    :nWorkers_((u_int)cb.size()),
+     queueSize_(queueSize),
+     callbacks_(cb),
+     taskCounter_(nWorkers_)
+{
+    workers_.reserve(nWorkers_);
+    for (size_t i = 0; i < nWorkers_; ++i) {
+
+        char name[32];
+        snprintf(name, sizeof name, "%s%lu", "worker", i + 1);
+
+        workers_.emplace_back(new muduo::ThreadPool(name));
+        workers_[i]->setMaxQueueSize(queueSize_);
+        workers_[i]->start(1);
+    }
+    LOG_INFO << "Dispatcher: started, " << nWorkers_ << " workers";
+}
+
+Dispatcher::~Dispatcher()
+{
+    for (auto& w : workers_) {
+        w->stop();
+    }
+    for (size_t i = 0; i < nWorkers_; ++i) {
+        LOG_INFO << workers_[i]->name() << ": "
+                  << taskCounter_[i];
+    }
+}
+
+void Dispatcher::onIpFragment(const ip *hdr, int len)
+{
+    if (len < hdr->ip_hl * 4) {
+        LOG_WARN << "Dispatcher: " << "IP fragment too short";
+        return;
+    }
+
+    Ports ports;
+
+    try {
+        ports = getPorts(hdr, len);
+    }
+    catch (const muduo::Exception &ex) {
+        LOG_DEBUG << "Dispatcher: " << ex.what();
+        return;
+    }
+    catch (...) {
+        LOG_FATAL << "Dispatcher: unknown error";
+    }
+
+    u_int index = shard(hdr->ip_src.s_addr, ports.srcPort,
+                        hdr->ip_dst.s_addr, ports.dstPort) % nWorkers_;
+
+    auto& worker = *workers_[index];
+    auto& callback = callbacks_[index];
+
+    if (worker.queueSize() >= queueSize_ - 1) {
+        LOG_WARN << "Dispatcher: " << worker.name() << " overloaded";
+        return;
+    }
+
+    // necessary malloc and memcpy
+    ip *copiedIpFragment = (ip*) malloc(len);
+    if (copiedIpFragment == NULL) {
+        LOG_FATAL << "Dispatcher: malloc failed";
+    }
+
+    memcpy(copiedIpFragment, hdr, len);
+
+    // should not block
+    worker.run(std::bind(callback, copiedIpFragment, len));
+    ++taskCounter_[index];
+
+    // after task is complete, free pointer
+    worker.run([=]() {
+        free(copiedIpFragment);
+    });
+}
