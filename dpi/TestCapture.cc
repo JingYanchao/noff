@@ -58,9 +58,9 @@ int main()
         PacektCounter       packetCounter;
         IpFragmentCounter   ipCounter;
 
-        cap = new Capture("any", 65536, 1, 1000);
+        cap = new Capture("any", 1024, 1, 0);
 
-        cap -> setFilter("ip");
+       cap -> setFilter("ip");
 
         cap -> addPacketCallBack(std::bind(
                 &PacektCounter::onMessage, &packetCounter, _1, _2));
@@ -68,7 +68,7 @@ int main()
                 &IpFragmentCounter::onMessage, &ipCounter, _1, _2));
 
         // block until enough packets received
-        cap->startLoop(20);
+        cap->startLoop(0);
 
         // break loop(if still running) and close capture
         delete cap;

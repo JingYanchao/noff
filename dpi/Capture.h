@@ -18,8 +18,8 @@ public:
     typedef std::function<void(const pcap_pkthdr*, const u_char*)> PacketCallback;
     typedef std::function<void(const ip*, int)> IpFragmentCallback;
 
-
-    Capture(const char *device, int snaplen, int promisc, int msTimeout);
+    explicit
+    Capture(const char *device, int snaplen, bool promisc, int msTimeout);
     ~Capture();
 
     void addPacketCallBack(const PacketCallback& cb)
@@ -57,7 +57,7 @@ private:
     std::vector<PacketCallback>      packetCallbacks_;
     std::vector<IpFragmentCallback>  ipFragmentCallbacks_;
 
-    void onRecvPacket(const pcap_pkthdr *, const u_char*);
+    void onPacket(const pcap_pkthdr *, const u_char *);
 
     void logCaptureStats();
 
