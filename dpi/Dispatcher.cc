@@ -81,11 +81,12 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
 
     // necessary malloc and memcpy
     ip *copiedIpFragment = (ip*) malloc(len);
-    if (copiedIpFragment == NULL) {
+    if (copiedIpFragment == NULL)
+    {
         LOG_FATAL << "Dispatcher: malloc failed";
     }
 
-    memcpy(copiedIpFragment, hdr, len);
+    memmove(copiedIpFragment, hdr, len);
 
     // should not block
     worker.run(std::bind(callback, copiedIpFragment, len));
