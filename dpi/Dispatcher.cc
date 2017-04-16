@@ -64,7 +64,8 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
         index = shard(hdr, len) % nWorkers_;
     }
     catch (const muduo::Exception &ex) {
-        LOG_DEBUG << "Dispatcher: " << ex.what();
+        // not UDP, TCP, ICMP protocals, this is usual
+        LOG_TRACE << "Dispatcher: " << ex.what();
         return;
     }
     catch (...) {

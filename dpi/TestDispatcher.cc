@@ -32,7 +32,7 @@ private:
     muduo::AtomicInt32 counter_;
 };
 
-Capture cap("any", 65536, true, 1000);
+Capture cap("eno2", 65536, true, 1000);
 
 void sigHandler(int)
 {
@@ -51,7 +51,7 @@ int main()
     IpFragmentCounter counter;
 
     // connect Dispatcher and IpFragmentCounter
-    size_t nWorkers = 4;
+    size_t nWorkers = 12;
     std::vector<Dispatcher::IpFragmentCallback> callbacks(
             nWorkers, std::bind(
                     &IpFragmentCounter::onIpFragment, &counter, _1, _2));
