@@ -6,8 +6,75 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+#include <netinet/ip_icmp.h>
+
+#include <muduo/base/Exception.h>
 
 #include "Sharding.h"
+
+namespace
+{
+
+struct Tuple4
+{
+    u_int       srcIP;
+    u_int       dstIP;
+    u_int16_t   srcPort;
+    u_int16_t   dstPort;
+};
+
+Tuple4 getTuple4(const ip* hdr, int len)
+{
+    u_int16_t   srcPort, dstPort;
+    u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
+
+    len -= 4 * hdr->ip_hl;
+    assert(len >= 0);
+
+    switch (hdr->ip_p) {
+
+        case IPPROTO_TCP:
+        {
+            tcphdr *tcp = (tcphdr*)data;
+
+            if (len < (int)sizeof(tcphdr)) {
+                throw muduo::Exception("TCP header too short");
+            }
+
+            srcPort = tcp->th_sport;
+            dstPort = tcp->th_dport;
+        }
+            break;
+        case IPPROTO_UDP:
+        {
+            udphdr *udp = (udphdr*)data;
+
+            if (len < (int)sizeof(udphdr)) {
+                throw muduo::Exception("UDP header too short");
+            }
+
+            srcPort = udp->uh_sport;
+            dstPort = udp->uh_dport;
+        }
+            break;
+        case IPPROTO_ICMP:
+            // FIXME: choose a constant port number for sharding?
+            srcPort = dstPort = 928;
+            break;
+        default:
+            throw muduo::Exception("unsupported protocol");
+    }
+
+    return { hdr->ip_src.s_addr,
+             hdr->ip_dst.s_addr,
+             srcPort,
+             dstPort };
+}
+
+}
+
 
 Sharding::Sharding()
 {
@@ -26,20 +93,21 @@ Sharding::Sharding()
     }
 }
 
-u_int Sharding::operator()(u_int srcIP, u_int16_t srcPort, u_int dstIP, u_int16_t dstPort)
+u_int Sharding::operator()(const ip* hdr, int len)
 {
     u_int   res = 0;
-    int     i;
     u_char  data[12];
 
+    Tuple4 t = getTuple4(hdr, len);;
+
     u_int *stupid_strict_aliasing_warnings=(u_int*)data;
-    *stupid_strict_aliasing_warnings = srcIP;
+    *stupid_strict_aliasing_warnings = t.srcIP;
 
-    *(u_int *) (data + 4) = dstIP;
-    *(u_int16_t *) (data + 8) = srcPort;
-    *(u_int16_t *) (data + 10) = dstPort;
+    *(u_int *) (data + 4) = t.dstIP;
+    *(u_int16_t *) (data + 8) = t.srcPort;
+    *(u_int16_t *) (data + 10) = t.dstPort;
 
-    for (i = 0; i < 12; i++)
+    for (int i = 0; i < 12; i++)
         res = ( (res << 8) + (data[perm_[i]] ^ xor_[i])) % 0xff100f;
 
     return res;
