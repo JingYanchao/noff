@@ -9,54 +9,68 @@
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
-
-void tcp_output(u_char* data,int len)
+class protocol
 {
-    printf("this tcp\n");
-}
+public:
+    void tcp_output(u_char* data,int len)
+    {
+        tcp_num.add(1);
+    }
 
-void udp_output(char* data)
-{
-    printf("this udp\n");
-}
+    void udp_output(char* data)
+    {
+        udp_num.add(1);
+    }
 
-void icmp_output(u_char* data)
-{
-    printf("this icmp");
-}
+    void icmp_output(u_char* data)
+    {
+        icmp_num.add(1);
+    }
+    ~protocol()
+    {
+        LOG_INFO<<"tcp:"<<tcp_num.get()<<" "<<"udp:"<<udp_num.get()<<" "<<"icmp:"<<icmp_num.get();
+    }
 
-Capture cap("any", 65536, true, 1000);
 
+private:
+    muduo::AtomicInt32 tcp_num;
+    muduo::AtomicInt32 udp_num;
+    muduo::AtomicInt32 icmp_num;
+
+};
+Capture cap("eno2", 65536, true, 1000);
+protocol ptc;
 void sigHandler(int)
 {
     cap.breakLoop();
 }
 
+
 int main()
 {
-    muduo::Logger::setLogLevel(muduo::Logger::TRACE);
+    muduo::Logger::setLogLevel(muduo::Logger::DEBUG);
 
     signal(SIGINT, sigHandler);
 
     cap.setFilter("ip");
 
     // customized function, count IP fragments
-    Ip_fragment frag[4];
+    Ip_fragment frag[12];
 
     // connect Dispatcher and IpFragmentCounter
-    size_t nWorkers = 4;
+    size_t nWorkers = 12;
     std::vector<Dispatcher::IpFragmentCallback> callbacks;
-    for(int i=0;i<4;i++)
+    for(int i=0;i<12;i++)
     {
-        frag[i].addTcpCallback(std::bind(&tcp_output,std::placeholders::_1, std::placeholders::_2));
-        frag[i].addUdpCallback(std::bind(&udp_output,std::placeholders::_1));
-        frag[i].addIcmpCallback(std::bind(&icmp_output,std::placeholders::_1));
+        frag[i].addTcpCallback(std::bind(&protocol::tcp_output,&ptc,std::placeholders::_1,std::placeholders::_2));
+        frag[i].addUdpCallback(std::bind(&protocol::udp_output,&ptc,std::placeholders::_1));
+        frag[i].addIcmpCallback(std::bind(&protocol::icmp_output,&ptc,std::placeholders::_1));
         callbacks.push_back(std::bind(&Ip_fragment::start_ip_frag_proc, &frag[i], std::placeholders::_1, std::placeholders::_2));
     }
 
     // if queue is full, Dispatcher will warn
     // Dispatcher dis(callbacks, 2);
-    Dispatcher dispatcher(callbacks, 1024);
+    Dispatcher dispatcher(callbacks, 65536);
 
     // connect Capture and Dispatcher
     cap.addIpFragmentCallback(std::bind(
