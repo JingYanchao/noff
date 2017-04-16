@@ -5,11 +5,14 @@
 #ifndef NOFF_SHARDING_H
 #define NOFF_SHARDING_H
 
+#include <netinet/ip.h>
+
 class Sharding {
 
 public:
     Sharding();
-    u_int operator()(u_int srcIP, u_int16_t srcPort, u_int dstIP, u_int16_t dstPort);
+
+    u_int operator()(const ip* hdr, int len);
 
 private:
     void initRandom();

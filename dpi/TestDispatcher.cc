@@ -39,7 +39,6 @@ void sigHandler(int)
     cap.breakLoop();
 }
 
-
 int main()
 {
     muduo::Logger::setLogLevel(muduo::Logger::TRACE);

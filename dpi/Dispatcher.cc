@@ -16,57 +16,8 @@
 namespace
 {
 
-struct Ports {
-    u_int16_t srcPort;
-    u_int16_t dstPort;
-};
-
-Ports getPorts(const ip *hdr, int len)
-{
-    u_int16_t   srcPort, dstPort;
-    u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
-
-    len -= 4 * hdr->ip_hl;
-    assert(len >= 0);
-
-    switch (hdr->ip_p) {
-
-        case IPPROTO_TCP:
-        {
-            tcphdr *tcp = (tcphdr*)data;
-
-            if (len < (int)sizeof(tcphdr)) {
-                throw muduo::Exception("TCP header too short");
-            }
-
-            srcPort = tcp->th_sport;
-            dstPort = tcp->th_dport;
-        }
-            break;
-        case IPPROTO_UDP:
-        {
-            udphdr *udp = (udphdr*)data;
-
-            if (len < (int)sizeof(udphdr)) {
-                throw muduo::Exception("UDP header too short");
-            }
-
-            srcPort = udp->uh_sport;
-            dstPort = udp->uh_dport;
-        }
-            break;
-        case IPPROTO_ICMP:
-            // FIXME: choose a constant port number for sharding?
-            srcPort = dstPort = 928;
-            break;
-        default:
-            throw muduo::Exception("unsupported protocol");
-    }
-
-    return { srcPort, dstPort };
-}
-
 Sharding shard;
+
 };
 
 
@@ -107,10 +58,10 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
         return;
     }
 
-    Ports ports;
+    u_int index;
 
     try {
-        ports = getPorts(hdr, len);
+        index = shard(hdr, len) % nWorkers_;
     }
     catch (const muduo::Exception &ex) {
         LOG_DEBUG << "Dispatcher: " << ex.what();
@@ -119,9 +70,6 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
     catch (...) {
         LOG_FATAL << "Dispatcher: unknown error";
     }
-
-    u_int index = shard(hdr->ip_src.s_addr, ports.srcPort,
-                        hdr->ip_dst.s_addr, ports.dstPort) % nWorkers_;
 
     auto& worker = *workers_[index];
     auto& callback = callbacks_[index];
