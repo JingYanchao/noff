@@ -29,7 +29,8 @@ Ports getPorts(const ip *hdr, int len)
     len -= 4 * hdr->ip_hl;
     assert(len >= 0);
 
-    switch (hdr->ip_p) {
+    switch (hdr->ip_p)
+    {
 
         case IPPROTO_TCP:
         {
@@ -133,11 +134,12 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
 
     // necessary malloc and memcpy
     ip *copiedIpFragment = (ip*) malloc(len);
-    if (copiedIpFragment == NULL) {
+    if (copiedIpFragment == NULL)
+    {
         LOG_FATAL << "Dispatcher: malloc failed";
     }
 
-    memcpy(copiedIpFragment, hdr, len);
+    memmove(copiedIpFragment, hdr, len);
 
     // should not block
     worker.run(std::bind(callback, copiedIpFragment, len));

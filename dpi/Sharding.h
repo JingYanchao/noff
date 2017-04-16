@@ -5,7 +5,8 @@
 #ifndef NOFF_SHARDING_H
 #define NOFF_SHARDING_H
 
-class Sharding {
+class Sharding
+{
 
 public:
     Sharding();
