@@ -143,7 +143,11 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data)
     switch (linkType) {
 
         case DLT_EN10MB:
-            if (data[12] != 0x08 || data[13] != 0x00) {
+            if (data[12] == 0x81 && data[13] == 0) {
+                /* Skip 802.1Q VLAN and priority information */
+                linkOffset = 18;
+            }
+            else if (data[12] != 0x08 || data[13] != 0x00) {
                 LOG_DEBUG << "Capture: receive none IP packet";
                 return;
             }
