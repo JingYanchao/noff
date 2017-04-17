@@ -68,7 +68,8 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
         LOG_DEBUG << "Dispatcher: " << ex.what();
         return;
     }
-    catch (...) {
+    catch (...)
+    {
         LOG_FATAL << "Dispatcher: unknown error";
     }
 

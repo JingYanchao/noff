@@ -114,12 +114,12 @@ void Capture::breakLoop()
 
 void Capture::setFilter(const char *str)
 {
-    if (pcap_compile(pcap_, &filter_, str, 1, 0) != 0) {
+    if (pcap_compile(pcap_, &filter_, str, 1, 0) < 0) {
         LOG_ERROR << "pcap compile: " << pcap_geterr(pcap_);
         exit(1);
     }
 
-    if (pcap_setfilter(pcap_, &filter_) != 0) {
+    if (pcap_setfilter(pcap_, &filter_) == -1) {
         LOG_ERROR << "pcap setfilter: " << pcap_geterr(pcap_);
         exit(1);
     }
@@ -156,7 +156,7 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeS
 
         case DLT_LINUX_SLL:
             if (data[14] != 0x08 || data[15] != 0x00) {
-                LOG_DEBUG << "Capture: receive none IP packet";
+                LOG_TRACE << "Capture: receive none IP packet";
                 return;
             }
             break;

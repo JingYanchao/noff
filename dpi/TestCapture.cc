@@ -34,12 +34,14 @@ private:
     int counter_ = 0;
 };
 
-class IpFragmentCounter {
+class IpFragmentCounter
+{
 
 public:
     void onMessage(const ip *, int len, timeval timeStamp)
     {
-        if (++counter_ % 10 == 0) {
+        if (++counter_ % 10 == 0)
+        {
             LOG_INFO << counter_ << " IP fragments received";
         }
     }
