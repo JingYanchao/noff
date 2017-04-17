@@ -11,6 +11,7 @@
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+using std::placeholders::_3;
 
 Capture::Capture(const char *device, int snaplen, bool promisc, int msTimeout)
         :pcap_(NULL),
@@ -60,7 +61,7 @@ Capture::Capture(const char *device, int snaplen, bool promisc, int msTimeout)
     LOG_DEBUG << "Capture: open, link type " << linkTypeStr;
 
     addPacketCallBack(std::bind(
-            &Capture::onPacket, this, _1, _2));
+            &Capture::onPacket, this, _1, _2, _3));
 }
 
 Capture::~Capture()
@@ -133,7 +134,7 @@ void Capture::logCaptureStats()
              << ", drop by filter " << stat.ps_ifdrop;
 }
 
-void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data)
+void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeStamp)
 {
     if (hdr->caplen <= linkOffset) {
         LOG_WARN << "Capture: packet too short";
@@ -168,7 +169,8 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data)
 
     for (auto& func : ipFragmentCallbacks_) {
         func((ip*)(data + linkOffset),
-             hdr->caplen - linkOffset);
+             hdr->caplen - linkOffset,
+             timeStamp);
     }
 }
 
@@ -178,6 +180,6 @@ void Capture::internalCallBack(u_char *user, const struct pcap_pkthdr *hdr, cons
     Capture *cap = reinterpret_cast<Capture*>(user);
 
     for (auto& func : cap->packetCallbacks_) {
-        func(hdr, data);
+        func(hdr, data, hdr->ts);
     }
 }

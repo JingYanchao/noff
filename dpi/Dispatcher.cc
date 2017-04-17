@@ -51,7 +51,7 @@ Dispatcher::~Dispatcher()
     }
 }
 
-void Dispatcher::onIpFragment(const ip *hdr, int len)
+void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 {
     if (len < hdr->ip_hl * 4) {
         LOG_WARN << "Dispatcher: " << "IP fragment too short";
@@ -65,7 +65,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
     }
     catch (const muduo::Exception &ex) {
         // not UDP, TCP, ICMP protocals, this is usual
-        LOG_TRACE << "Dispatcher: " << ex.what();
+        LOG_DEBUG << "Dispatcher: " << ex.what();
         return;
     }
     catch (...) {
@@ -90,7 +90,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len)
     memmove(copiedIpFragment, hdr, len);
 
     // should not block
-    worker.run(std::bind(callback, copiedIpFragment, len));
+    worker.run(std::bind(callback, copiedIpFragment, len, timeStamp));
     ++taskCounter_[index];
 
     // after task is complete, free pointer

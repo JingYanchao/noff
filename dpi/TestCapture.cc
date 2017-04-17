@@ -11,6 +11,7 @@
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+using std::placeholders::_3;
 
 Capture *cap;
 
@@ -22,7 +23,7 @@ void sigHandler(int)
 class PacektCounter {
 
 public:
-    void onMessage(const pcap_pkthdr *, const u_char *data)
+    void onMessage(const pcap_pkthdr *, const u_char *data, timeval timeStamp)
     {
         if (++counter_ % 10 == 0) {
             LOG_INFO << counter_ << " packets received";
@@ -36,7 +37,7 @@ private:
 class IpFragmentCounter {
 
 public:
-    void onMessage(const ip *, int len)
+    void onMessage(const ip *, int len, timeval timeStamp)
     {
         if (++counter_ % 10 == 0) {
             LOG_INFO << counter_ << " IP fragments received";
@@ -63,9 +64,9 @@ int main()
        cap -> setFilter("ip");
 
         cap -> addPacketCallBack(std::bind(
-                &PacektCounter::onMessage, &packetCounter, _1, _2));
+                &PacektCounter::onMessage, &packetCounter, _1, _2, _3));
         cap->addIpFragmentCallback(std::bind(
-                &IpFragmentCounter::onMessage, &ipCounter, _1, _2));
+                &IpFragmentCounter::onMessage, &ipCounter, _1, _2, _3));
 
         // block until enough packets received
         cap->startLoop(0);
