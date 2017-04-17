@@ -13,6 +13,7 @@
 #include <muduo/base/Exception.h>
 
 #include "Sharding.h"
+#include <assert.h>
 
 namespace
 {

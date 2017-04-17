@@ -1,7 +1,6 @@
 //
 // Created by jyc on 17-4-14.
 //
-
 #ifndef NOFF_IP_FRAGMENT_H
 #define NOFF_IP_FRAGMENT_H
 
@@ -9,6 +8,8 @@
 #include <muduo/base/noncopyable.h>
 #include <vector>
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
 
 #define IP_CE		0x8000	/* Flag: "Congestion" */
 #define IP_DF		0x4000	/* Flag: "Don't Fragment" */
@@ -90,7 +91,7 @@ class Ip_fragment:muduo::noncopyable
 {
 public:
     typedef std::function<void(ip,int)>         IpCallback;
-    typedef std::function<void(u_char*,int)>    TcpCallback;
+    typedef std::function<void(tcphdr*,int)>    TcpCallback;
     typedef std::function<void(char*)>          UdpCallback;
     typedef std::function<void(u_char*)>        IcmpCallback;
     Ip_fragment();
@@ -117,7 +118,7 @@ public:
         icmpCallbacks_.push_back(cb);
     }
 
-    void start_ip_frag_proc(ip * data, int len);
+    void startIpfragProc(ip *data, int len);
 
 
 
@@ -135,30 +136,30 @@ private:
     unsigned int time0;
     struct timer_list *timer_head = 0, *timer_tail = 0;
 
-    int ip_defrag_stub(struct ip *iph, struct ip **defrag);
+    int ipDefragStub(struct ip *iph, struct ip **defrag);
     int jiffies();
-    char* ip_defrag(struct ip *iph, struct sk_buff *skb);
-    char* ip_glue(struct ipq* qp);
-    int ip_done(struct ipq * qp);
-    ipq* ip_create(struct ip * iph);
-    void ip_evictor(void);
-    void ip_expire(unsigned long arg);
-    void ip_free(struct ipq * qp);
-    void atomic_sub(int ile, int *co);
-    void atomic_add(int ile, int *co);
-    void kfree_skb(struct sk_buff * skb, int type);
-    void add_timer(struct timer_list * x);
-    void del_timer(struct timer_list * x);
-    void frag_kfree_skb(struct sk_buff * skb, int type);
-    void*frag_kmalloc(int size, int dummy);
-    void frag_kfree_s(void *ptr, int len);
+    char* ipDefrag(struct ip *iph, struct sk_buff *skb);
+    char* ipGlue(struct ipq *qp);
+    int ipDone(struct ipq *qp);
+    ipq* ipCreate(struct ip *iph);
+    void ipEvictor(void);
+    void ipExpire(unsigned long arg);
+    void ipFree(struct ipq *qp);
+    void atomicSub(int ile, int *co);
+    void atomicAdd(int ile, int *co);
+    void kfreeSkb(struct sk_buff *skb, int type);
+    void addTimer(struct timer_list *x);
+    void delTimer(struct timer_list *x);
+    void fragKfreeskb(struct sk_buff *skb, int type);
+    void*fragKmalloc(int size, int dummy);
+    void fragKfrees(void *ptr, int len);
     ipfrag* ip_frag_create(int offset, int end, struct sk_buff * skb, unsigned char *ptr);
-    int frag_index(struct ip * iph);
-    int hostfrag_find(struct ip * iph);
-    void hostfrag_create(struct ip * iph);
-    void rmthis_host();
-    void gen_ip_proc(u_char * data, int skblen);
-    ipq* ip_find(struct ip * iph);
+    int fragIndex(struct ip *iph);
+    int hostfragFind(struct ip *iph);
+    void hostfragCreate(struct ip *iph);
+    void rmthisHost();
+    void genIpProc(u_char *data, int skblen);
+    ipq* ipFind(struct ip *iph);
 };
 
 
