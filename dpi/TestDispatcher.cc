@@ -12,12 +12,13 @@
 
 using std::placeholders::_1;
 using std::placeholders::_2;
+using std::placeholders::_3;
 
 class IpFragmentCounter {
 
 public:
     // Dispatcher callbacks must be thread safe !!!
-    void onIpFragment(ip *hdr, int len)
+    void onIpFragment(ip *hdr, int len, timeval timeStamp)
     {
         counter_.add(1);
         // do NOT manually free(hdr),
@@ -32,7 +33,7 @@ private:
     muduo::AtomicInt32 counter_;
 };
 
-Capture cap("eno2", 65536, true, 1000);
+Capture cap("wlo1", 65536, true, 1000);
 
 void sigHandler(int)
 {
@@ -51,10 +52,10 @@ int main()
     IpFragmentCounter counter;
 
     // connect Dispatcher and IpFragmentCounter
-    size_t nWorkers = 12;
+    size_t nWorkers = 1;
     std::vector<Dispatcher::IpFragmentCallback> callbacks(
             nWorkers, std::bind(
-                    &IpFragmentCounter::onIpFragment, &counter, _1, _2));
+                    &IpFragmentCounter::onIpFragment, &counter, _1, _2, _3));
 
 
     // if queue is full, Dispatcher will warn
@@ -63,7 +64,7 @@ int main()
 
     // connect Capture and Dispatcher
     cap.addIpFragmentCallback(std::bind(
-            &Dispatcher::onIpFragment, &dispatcher, _1, _2));
+            &Dispatcher::onIpFragment, &dispatcher, _1, _2, _3));
 
     cap.startLoop(0);
 }
