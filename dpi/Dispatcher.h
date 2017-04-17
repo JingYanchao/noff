@@ -17,13 +17,13 @@ class Dispatcher : muduo::noncopyable {
 
 public:
     // not the same as Capture
-    typedef std::function<void(ip*, int)> IpFragmentCallback;
+    typedef std::function<void(ip*, int, timeval)> IpFragmentCallback;
 
     explicit
     Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSize);
     ~Dispatcher();
 
-    void onIpFragment(const ip*, int);
+    void onIpFragment(const ip*, int, timeval);
 
 private:
 
