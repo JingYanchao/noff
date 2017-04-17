@@ -34,12 +34,15 @@ Tuple4 getTuple4(const ip* hdr, int len)
     len -= 4 * hdr->ip_hl;
     assert(len >= 0);
 
-    switch (hdr->ip_p) {
+    switch (hdr->ip_p)
+    {
 
-        case IPPROTO_TCP: {
+        case IPPROTO_TCP:
+        {
             tcphdr *tcp = (tcphdr *) data;
 
-            if (len < (int) sizeof(tcphdr)) {
+            if (len < (int) sizeof(tcphdr))
+            {
                 throw muduo::Exception("TCP header too short");
             }
 
@@ -50,7 +53,8 @@ Tuple4 getTuple4(const ip* hdr, int len)
         case IPPROTO_UDP: {
             udphdr *udp = (udphdr *) data;
 
-            if (len < (int) sizeof(udphdr)) {
+            if (len < (int) sizeof(udphdr))
+            {
                 throw muduo::Exception("UDP header too short");
             }
 

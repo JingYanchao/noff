@@ -9,99 +9,102 @@
 #include <netinet/tcp.h>
 #include <netinet/ip.h>
 #include <netinet/in.h>
+TcpFragment::TcpFragment()
+{
+    int num_tcp_stream = 1001;
+    tcpInit(num_tcp_stream);
+}
 
-int TcpFragment::tcp_init(int size)
+TcpFragment::~TcpFragment()
+{
+    tcpExit();
+}
+
+int TcpFragment::tcpInit(int size)
 {
     int i;
-    struct tcp_timeout *tmp;
+    struct tcpTimeout *tmp;
 
     if (!size)
         return 0;
 
     //初始化全局tcp会话的哈希表
-    tcp_stream_table_size = size;
-    tcp_stream_table = (tcp_stream **) calloc(tcp_stream_table_size, sizeof(char *));
-    if (!tcp_stream_table)
+    tcpStreamTableSize = size;
+    tcpStreamTable = (tcpStream **) calloc(tcpStreamTableSize, sizeof(char *));
+    if (!tcpStreamTable)
     {
-        LOG_ERROR<<"the memory of tcp_stream_table is invalid";
+        LOG_ERROR<<"the memory of tcpStreamTable is invalid";
         exit(1);
     }
     //设置最大会话数，为了哈希的效率，哈希表的元素个数上限设为3/4表大小
-    max_stream = 3 * tcp_stream_table_size / 4;
+    maxStream = 3 * tcpStreamTableSize / 4;
 
     //先将max_stream个tcp会话结构体申请好，放着（避免后面陆陆续续申请浪费时间）。
-    streams_pool = (struct tcp_stream *) malloc((max_stream + 1) * sizeof(struct tcp_stream));
-    if (!streams_pool)
+    streamsPool = (struct tcpStream *) malloc((maxStream + 1) * sizeof(struct tcpStream));
+    if (!streamsPool)
     {
-        LOG_ERROR<<"the memory of streams_pool is invalid";
+        LOG_ERROR<<"the memory of streamsPool is invalid";
         exit(1);
     }
 
     //ok，将这个数组初始化成链表
-    for (i = 0; i < max_stream; i++)
-        streams_pool[i].next_free = &(streams_pool[i + 1]);
+    for (i = 0; i < maxStream; i++)
+        streamsPool[i].next_free = &(streamsPool[i + 1]);
 
-    streams_pool[max_stream].next_free = 0;
-    free_streams = streams_pool;
+    streamsPool[maxStream].next_free = 0;
+    freeStreams = streamsPool;
 
     //清空原来的所有定时器
-    while (nids_tcp_timeouts)
+    while (nidsTcpTimeouts)
     {
-        tmp = nids_tcp_timeouts->next;
-        free(nids_tcp_timeouts);
-        nids_tcp_timeouts = tmp;
+        tmp = nidsTcpTimeouts->next;
+        free(nidsTcpTimeouts);
+        nidsTcpTimeouts = tmp;
     }
     return 0;
 }
 
-void TcpFragment::tcp_exit()
+void TcpFragment::tcpExit()
 {
     int i;
-    struct lurker_node *j;
-    struct tcp_stream *a_tcp, *t_tcp;
+    struct tcpStream *a_tcp, *t_tcp;
 
-    if (!tcp_stream_table || !streams_pool)
+    if (!tcpStreamTable || !streamsPool)
         return;
-    for (i = 0; i < tcp_stream_table_size; i++)
+    for (i = 0; i < tcpStreamTableSize; i++)
     {
-        a_tcp = tcp_stream_table[i];
+        a_tcp = tcpStreamTable[i];
         while(a_tcp)
         {
             t_tcp = a_tcp;
             a_tcp = a_tcp->next_node;
-            for (j = t_tcp->listeners; j; j = j->next)
-            {
-                t_tcp->nids_state = NIDS_EXITING;
-                (j->item)(t_tcp, &j->data);
-            }
-            nids_free_tcp_stream(t_tcp);
+            nidsFreetcpstream(t_tcp);
         }
     }
-    free(tcp_stream_table);
-    tcp_stream_table = NULL;
-    free(streams_pool);
-    streams_pool = NULL;
+    free(tcpStreamTable);
+    tcpStreamTable = NULL;
+    free(streamsPool);
+    streamsPool = NULL;
     /* FIXME: anything else we should free? */
     /* yes plz.. */
-    tcp_latest = tcp_oldest = NULL;
-    tcp_num = 0;
+    tcpLatest = tcpOldest = NULL;
+    tcpNum = 0;
 }
 
-void TcpFragment::nids_free_tcp_stream(struct tcp_stream * a_tcp)
+void TcpFragment::nidsFreetcpstream(struct tcpStream *a_tcp)
 {
     int hash_index = a_tcp->hash_index;
-    struct lurker_node *i, *j;
 
-    del_tcp_closing_timeout(a_tcp);
-    purge_queue(&a_tcp->server);
-    purge_queue(&a_tcp->client);
+    delTcpclosingtimeout(a_tcp);
+    purgeQueue(&a_tcp->server);
+    purgeQueue(&a_tcp->client);
 
     if (a_tcp->next_node)
         a_tcp->next_node->prev_node = a_tcp->prev_node;
     if (a_tcp->prev_node)
         a_tcp->prev_node->next_node = a_tcp->next_node;
     else
-        tcp_stream_table[hash_index] = a_tcp->next_node;
+        tcpStreamTable[hash_index] = a_tcp->next_node;
     if (a_tcp->client.data)
         free(a_tcp->client.data);
     if (a_tcp->server.data)
@@ -110,25 +113,16 @@ void TcpFragment::nids_free_tcp_stream(struct tcp_stream * a_tcp)
         a_tcp->next_time->prev_time = a_tcp->prev_time;
     if (a_tcp->prev_time)
         a_tcp->prev_time->next_time = a_tcp->next_time;
-    if (a_tcp == tcp_oldest)
-        tcp_oldest = a_tcp->prev_time;
-    if (a_tcp == tcp_latest)
-        tcp_latest = a_tcp->next_time;
-
-    i = a_tcp->listeners;
-
-    while (i)
-    {
-        j = i->next;
-        free(i);
-        i = j;
-    }
-    a_tcp->next_free = free_streams;
-    free_streams = a_tcp;
-    tcp_num--;
+    if (a_tcp == tcpOldest)
+        tcpOldest = a_tcp->prev_time;
+    if (a_tcp == tcpLatest)
+        tcpLatest = a_tcp->next_time;
+    a_tcp->next_free = freeStreams;
+    freeStreams = a_tcp;
+    tcpNum--;
 }
 
-void TcpFragment::purge_queue(struct half_stream * h)
+void TcpFragment::purgeQueue(struct halfStream *h)
 {
     struct skbuff *tmp, *p = h->list;
 
@@ -143,17 +137,17 @@ void TcpFragment::purge_queue(struct half_stream * h)
     h->rmem_alloc = 0;
 }
 
-void TcpFragment::del_tcp_closing_timeout(struct tcp_stream * a_tcp)
+void TcpFragment::delTcpclosingtimeout(struct tcpStream *a_tcp)
 {
-    struct tcp_timeout *to;
+    struct tcpTimeout *to;
 
-    for (to = nids_tcp_timeouts; to; to = to->next)
+    for (to = nidsTcpTimeouts; to; to = to->next)
         if (to->a_tcp == a_tcp)
             break;
     if (!to)
         return;
     if (!to->prev)
-        nids_tcp_timeouts = to->next;
+        nidsTcpTimeouts = to->next;
     else
         to->prev->next = to->next;
     if (to->next)
@@ -162,24 +156,21 @@ void TcpFragment::del_tcp_closing_timeout(struct tcp_stream * a_tcp)
 }
 
 
-void TcpFragment::add_tcp_closing_timeout(struct tcp_stream * a_tcp)
+void TcpFragment::addTcpclosingtimeout(struct tcpStream *a_tcp,timeval timeStamp)
 {
-    struct tcp_timeout *to;
-    struct tcp_timeout *newto;
+    struct tcpTimeout *to;
+    struct tcpTimeout *newto;
 
-    newto = (tcp_timeout *) malloc(sizeof (struct tcp_timeout));
+    newto = (tcpTimeout *) malloc(sizeof (struct tcpTimeout));
     if (!newto)
     {
-        LOG_ERROR<<"the memory of add_tcp_closing_timeout is invalid";
+        LOG_ERROR<<"the memory of addTcpclosingtimeout is invalid";
         exit(1);
     }
     newto->a_tcp = a_tcp;
-    timeval now_time;
-    timezone now_zone;
-    gettimeofday(&now_time,&now_zone);
-    newto->timeout.tv_sec = now_time.tv_sec + 10;
+    newto->timeout.tv_sec = timeStamp.tv_sec + 10;
     newto->prev = 0;
-    for (newto->next = to = nids_tcp_timeouts; to; newto->next = to = to->next)
+    for (newto->next = to = nidsTcpTimeouts; to; newto->next = to = to->next)
     {
         if (to->a_tcp == a_tcp)
         {
@@ -191,39 +182,34 @@ void TcpFragment::add_tcp_closing_timeout(struct tcp_stream * a_tcp)
         newto->prev = to;
     }
     if (!newto->prev)
-        nids_tcp_timeouts = newto;
+        nidsTcpTimeouts = newto;
     else
         newto->prev->next = newto;
     if (newto->next)
         newto->next->prev = newto;
 }
 
-void TcpFragment::tcp_check_timeouts()
+void TcpFragment::tcpChecktimeouts(timeval timeStamp)
 {
-    struct tcp_timeout *to;
-    struct tcp_timeout *next;
-    struct lurker_node *i;
-    timeval now;
-    timezone now_zone;
-    gettimeofday(&now,&now_zone);
-    for (to = nids_tcp_timeouts; to; to = next)
+    struct tcpTimeout *to;
+    struct tcpTimeout *next;
+    for (to = nidsTcpTimeouts; to; to = next)
     {
-        printf("%d %d\n",now.tv_sec,to->timeout.tv_sec);
-        if (now.tv_sec < to->timeout.tv_sec)
+        if (timeStamp.tv_sec < to->timeout.tv_sec)
             return;
         //如果时间到达的话,就将tcp的数据上传
         to->a_tcp->nids_state = NIDS_TIMED_OUT;
         //进行回调
         for(auto func:tcptimeoutCallback_)
         {
-            func();
+            func(to->a_tcp,timeStamp);
         }
         next = to->next;
-        nids_free_tcp_stream(to->a_tcp);
+        nidsFreetcpstream(to->a_tcp);
     }
 }
 
-void TcpFragment::add2buf(struct half_stream * rcv, char *data, int datalen)
+void TcpFragment::add2buf(struct halfStream * rcv, char *data, int datalen)
 {
     int toalloc;
 
@@ -258,10 +244,10 @@ void TcpFragment::add2buf(struct half_stream * rcv, char *data, int datalen)
     rcv->count += datalen;
 }
 
-void TcpFragment::add_from_skb(struct tcp_stream * a_tcp, struct half_stream * rcv,
-             struct half_stream * snd,
-             u_char *data, int datalen,
-             u_int this_seq, char fin, char urg, u_int urg_ptr)
+void TcpFragment::addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
+                             struct halfStream *snd,
+                             u_char *data, int datalen,
+                             u_int this_seq, char fin, char urg, u_int urg_ptr,timeval timeStamp)
 {
     u_int lost = EXP_SEQ - this_seq;
     int to_copy, to_copy2;
@@ -276,10 +262,12 @@ void TcpFragment::add_from_skb(struct tcp_stream * a_tcp, struct half_stream * r
         before(rcv->urg_ptr, this_seq + datalen))
     {
         to_copy = rcv->urg_ptr - (this_seq + lost);
-        if (to_copy > 0) {
+        if (to_copy > 0)
+        {
             if (rcv->collect)
             {
                 add2buf(rcv, (char *)(data + lost), to_copy);
+                notify(a_tcp, rcv,timeStamp);
             }
             else
             {
@@ -289,6 +277,7 @@ void TcpFragment::add_from_skb(struct tcp_stream * a_tcp, struct half_stream * r
         }
         rcv->urgdata = data[rcv->urg_ptr - this_seq];
         rcv->count_new_urg = 1;
+        notify(a_tcp, rcv,timeStamp);
         rcv->count_new_urg = 0;
         rcv->urg_seen = 0;
         rcv->urg_count++;
@@ -298,6 +287,7 @@ void TcpFragment::add_from_skb(struct tcp_stream * a_tcp, struct half_stream * r
             if (rcv->collect)
             {
                 add2buf(rcv, (char *)(data + lost + to_copy + 1), to_copy2);
+                notify(a_tcp, rcv,timeStamp);
             }
             else
             {
@@ -325,13 +315,13 @@ void TcpFragment::add_from_skb(struct tcp_stream * a_tcp, struct half_stream * r
     {
         snd->state = FIN_SENT;
         if (rcv->state == TCP_CLOSING)
-            add_tcp_closing_timeout(a_tcp);
+            addTcpclosingtimeout(a_tcp,timeStamp);
     }
 }
 
-void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcphdr,
-          struct half_stream * snd, struct half_stream * rcv,
-          char *data, int datalen, int skblen)
+void TcpFragment::tcpQueue(struct tcpStream *a_tcp, struct tcphdr *this_tcphdr,
+                           struct halfStream *snd, struct halfStream *rcv,
+                           char *data, int datalen, int skblen,timeval timeStamp)
 {
     u_int this_seq = ntohl(this_tcphdr->th_seq);
     struct skbuff *pakiet, *tmp;
@@ -347,13 +337,13 @@ void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcph
         if (after(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN), EXP_SEQ))
         {
             /* the packet straddles our window end */
-            get_ts(this_tcphdr, &snd->curr_ts);
+            getTs(this_tcphdr, &snd->curr_ts);
             //ok，更新集齐的数据区，值得一提的是add_from_skb函数一旦发现集齐了一段数据之后
             //便立刻调用notify函数，在notify函数里面将数据推给回调方
-            add_from_skb(a_tcp, rcv, snd, (u_char *)data, datalen, this_seq,
-                         (this_tcphdr->th_flags & TH_FIN),
-                         (this_tcphdr->th_flags & TH_URG),
-                         ntohs(this_tcphdr->th_urp) + this_seq - 1);
+            addFromskb(a_tcp, rcv, snd, (u_char *) data, datalen, this_seq,
+                       (this_tcphdr->th_flags & TH_FIN),
+                       (this_tcphdr->th_flags & TH_URG),
+                       ntohs(this_tcphdr->th_urp) + this_seq - 1,timeStamp);
             /*
              * Do we have any old packets to ack that the above
              * made visible? (Go forward from skb)
@@ -367,9 +357,9 @@ void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcph
                     break;
                 if (after(pakiet->seq + pakiet->len + pakiet->fin, EXP_SEQ))
                 {
-                    add_from_skb(a_tcp, rcv, snd, (u_char *) pakiet->data,
-                                 pakiet->len, pakiet->seq, pakiet->fin, pakiet->urg,
-                                 pakiet->urg_ptr + pakiet->seq - 1);
+                    addFromskb(a_tcp, rcv, snd, (u_char *) pakiet->data,
+                               pakiet->len, pakiet->seq, pakiet->fin, pakiet->urg,
+                               pakiet->urg_ptr + pakiet->seq - 1,timeStamp);
                 }
                 rcv->rmem_alloc -= pakiet->truesize;
                 if (pakiet->prev)
@@ -401,7 +391,7 @@ void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcph
         pakiet->data = malloc(datalen);
         if (!pakiet->data)
         {
-            LOG_WARN<<"no memory for tcp_queue";
+            LOG_WARN<<"no memory for tcpQueue";
         }
         memmove(pakiet->data, data, datalen);
         pakiet->fin = (this_tcphdr->th_flags & TH_FIN);
@@ -417,7 +407,7 @@ void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcph
         {
             snd->state = TCP_CLOSING;
             if (rcv->state == FIN_SENT || rcv->state == FIN_CONFIRMED)
-                add_tcp_closing_timeout(a_tcp);
+                addTcpclosingtimeout(a_tcp,timeStamp);
         }
         pakiet->seq = this_seq;
         pakiet->urg = (this_tcphdr->th_flags & TH_URG);
@@ -452,7 +442,7 @@ void TcpFragment::tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcph
 }
 
 
-int TcpFragment::get_ts(struct tcphdr * this_tcphdr, unsigned int * ts)
+int TcpFragment::getTs(struct tcphdr *this_tcphdr, unsigned int *ts)
 {
     int len = 4 * this_tcphdr->th_off;
     unsigned int tmp_ts;
@@ -480,7 +470,7 @@ int TcpFragment::get_ts(struct tcphdr * this_tcphdr, unsigned int * ts)
     return ret;
 }
 
-int TcpFragment::get_wscale(struct tcphdr * this_tcphdr, unsigned int * ws)
+int TcpFragment::getWscale(struct tcphdr *this_tcphdr, unsigned int *ws)
 {
     int len = 4 * this_tcphdr->th_off;
     unsigned int tmp_ws;
@@ -511,7 +501,7 @@ int TcpFragment::get_wscale(struct tcphdr * this_tcphdr, unsigned int * ws)
     return ret;
 }
 
-void TcpFragment::prune_queue(struct half_stream * rcv, struct tcphdr * this_tcphdr)
+void TcpFragment::pruneQueue(struct halfStream *rcv, struct tcphdr *this_tcphdr)
 {
     struct skbuff *tmp, *p = rcv->list;
     while (p)
@@ -525,7 +515,7 @@ void TcpFragment::prune_queue(struct half_stream * rcv, struct tcphdr * this_tcp
     rcv->rmem_alloc = 0;
 }
 
-void TcpFragment::handle_ack(struct half_stream * snd, u_int acknum)
+void TcpFragment::handleAck(struct halfStream *snd, u_int acknum)
 {
     int ackdiff;
 
@@ -536,10 +526,10 @@ void TcpFragment::handle_ack(struct half_stream * snd, u_int acknum)
     }
 }
 
-void TcpFragment::add_new_tcp(struct tcphdr * this_tcphdr, struct ip * this_iphdr)
+void TcpFragment::addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,timeval timeStamp)
 {
-    struct tcp_stream *tolink;
-    struct tcp_stream *a_tcp;
+    struct tcpStream *tolink;
+    struct tcpStream *a_tcp;
     int hash_index;
     struct tuple4 addr;
 
@@ -549,109 +539,65 @@ void TcpFragment::add_new_tcp(struct tcphdr * this_tcphdr, struct ip * this_iphd
     addr.daddr = this_iphdr->ip_dst.s_addr;
     hash_index = hash(addr.saddr,addr.source,addr.daddr,addr.dest);
 
-    if (tcp_num > max_stream)
+    if (tcpNum > maxStream)
     {
-        struct lurker_node *i;
-        int orig_client_state=tcp_oldest->client.state;
-        tcp_oldest->nids_state = NIDS_TIMED_OUT;
-        for (i = tcp_oldest->listeners; i; i = i->next)
-        {
-            (i->item) (tcp_oldest, &i->data);
-        }
-
-        nids_free_tcp_stream(tcp_oldest);
+        int orig_client_state=tcpOldest->client.state;
+        tcpOldest->nids_state = NIDS_TIMED_OUT;
+        LOG_WARN<<"the tcp_queue is out of range";
+        nidsFreetcpstream(tcpOldest);
         if (orig_client_state!=TCP_SYN_SENT)
         {
             LOG_DEBUG<<"the tcp state is wrong";
         }
-
     }
 
-    a_tcp = free_streams;
+    a_tcp = freeStreams;
     if (!a_tcp)
     {
         fprintf(stderr, "gdb me ...\n");
         pause();
     }
-    free_streams = a_tcp->next_free;
+    freeStreams = a_tcp->next_free;
 
-    tcp_num++;
-    tolink = tcp_stream_table[hash_index];
-    memset(a_tcp, 0, sizeof(struct tcp_stream));
+    tcpNum++;
+    tolink = tcpStreamTable[hash_index];
+    memset(a_tcp, 0, sizeof(struct tcpStream));
     a_tcp->hash_index = hash_index;
     a_tcp->addr = addr;
     a_tcp->client.state = TCP_SYN_SENT;
     a_tcp->client.seq = ntohl(this_tcphdr->th_seq) + 1;
     a_tcp->client.first_data_seq = a_tcp->client.seq;
     a_tcp->client.window = ntohs(this_tcphdr->th_win);
-    a_tcp->client.ts_on = get_ts(this_tcphdr, &a_tcp->client.curr_ts);
-    a_tcp->client.wscale_on = get_wscale(this_tcphdr, &a_tcp->client.wscale);
+    a_tcp->client.ts_on = getTs(this_tcphdr, &a_tcp->client.curr_ts);
+    a_tcp->client.wscale_on = getWscale(this_tcphdr, &a_tcp->client.wscale);
     a_tcp->server.state = TCP_CLOSE;
     a_tcp->next_node = tolink;
     a_tcp->prev_node = 0;
-    timeval now;
-    timezone now_zone;
-    gettimeofday(&now,&now_zone);
-    a_tcp->ts = now.tv_sec;
+    a_tcp->ts = timeStamp.tv_sec;
     if (tolink)
         tolink->prev_node = a_tcp;
-    tcp_stream_table[hash_index] = a_tcp;
-    a_tcp->next_time = tcp_latest;
+    tcpStreamTable[hash_index] = a_tcp;
+    a_tcp->next_time = tcpLatest;
     a_tcp->prev_time = 0;
-    if (!tcp_oldest)
-        tcp_oldest = a_tcp;
-    if (tcp_latest)
-        tcp_latest->prev_time = a_tcp;
-    tcp_latest = a_tcp;
+    if (!tcpOldest)
+        tcpOldest = a_tcp;
+    if (tcpLatest)
+        tcpLatest->prev_time = a_tcp;
+    tcpLatest = a_tcp;
 }
 
-static void
-add2buf(struct half_stream * rcv, char *data, int datalen)
-{
-    int toalloc;
-
-    if (datalen + rcv->count - rcv->offset > rcv->bufsize)
-    {
-        if (!rcv->data)
-        {
-            if (datalen < 2048)
-                toalloc = 4096;
-            else
-                toalloc = datalen * 2;
-            rcv->data = (char *) malloc(toalloc);
-            rcv->bufsize = toalloc;
-        }
-        else
-        {
-            if (datalen < rcv->bufsize)
-                toalloc = 2 * rcv->bufsize;
-            else
-                toalloc = rcv->bufsize + 2*datalen;
-            rcv->data = (char *) realloc(rcv->data, toalloc);
-            rcv->bufsize = toalloc;
-        }
-        if (!rcv->data)
-        {
-            LOG_WARN<<"the rcv data is invalid";
-        }
-
-    }
-    memmove(rcv->data + rcv->count - rcv->offset, data, datalen);
-    rcv->count_new = datalen;
-    rcv->count += datalen;
-}
 
 //查询hash表查看是否已经存在tcp流
-tcp_stream * TcpFragment::find_stream(struct tcphdr * this_tcphdr, struct ip * this_iphdr, int *from_client)
+tcpStream * TcpFragment::findStream(struct tcphdr *this_tcphdr, struct ip *this_iphdr, int *from_client)
 {
     tuple4 this_addr, reversed;
-    tcp_stream *a_tcp;
+    tcpStream *a_tcp;
 
     this_addr.source = ntohs(this_tcphdr->th_sport);
     this_addr.dest = ntohs(this_tcphdr->th_dport);
     this_addr.saddr = this_iphdr->ip_src.s_addr;
     this_addr.daddr = this_iphdr->ip_dst.s_addr;
-    a_tcp = nids_find_tcp_stream(&this_addr);
+    a_tcp = nidsFindtcpStream(&this_addr);
     if (a_tcp)
     {
         *from_client = 1;
@@ -661,7 +607,7 @@ tcp_stream * TcpFragment::find_stream(struct tcphdr * this_tcphdr, struct ip * t
     reversed.dest = ntohs(this_tcphdr->th_sport);
     reversed.saddr = this_iphdr->ip_dst.s_addr;
     reversed.daddr = this_iphdr->ip_src.s_addr;
-    a_tcp = nids_find_tcp_stream(&reversed);
+    a_tcp = nidsFindtcpStream(&reversed);
     if (a_tcp)
     {
         *from_client = 0;
@@ -670,19 +616,19 @@ tcp_stream * TcpFragment::find_stream(struct tcphdr * this_tcphdr, struct ip * t
     return 0;
 }
 
-tcp_stream * TcpFragment::nids_find_tcp_stream(struct tuple4 *addr)
+tcpStream * TcpFragment::nidsFindtcpStream(struct tuple4 *addr)
 {
     int hash_index;
-    struct tcp_stream *a_tcp;
+    struct tcpStream *a_tcp;
 
     hash_index = hash(addr->saddr,addr->source,addr->daddr,addr->dest);
-    for (a_tcp = tcp_stream_table[hash_index];
+    for (a_tcp = tcpStreamTable[hash_index];
          a_tcp && memcmp(&a_tcp->addr, addr, sizeof (struct tuple4));
          a_tcp = a_tcp->next_node);
     return a_tcp ? a_tcp : 0;
 }
 
-void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长度
+void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入数据与其长度
 {
     struct ip *this_iphdr = (struct ip *)data;//ip与tcp结构体见后面说明
     struct tcphdr *this_tcphdr = (struct tcphdr *)(data + 4 * this_iphdr->ip_hl);
@@ -690,10 +636,10 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
     int datalen, iplen;//数据部分长度，以及ip长度
     int from_client = 1;
     unsigned int tmp_ts;//时间戳
-    struct tcp_stream *a_tcp;
-    struct half_stream *snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
+    struct tcpStream *a_tcp;
+    struct halfStream *snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
 
-    ugly_iphdr = this_iphdr;
+    uglyIphdr = this_iphdr;
     iplen = ntohs(this_iphdr->ip_len);
     if ((unsigned)iplen < 4 * this_iphdr->ip_hl + sizeof(struct tcphdr))
     {
@@ -717,9 +663,8 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
         return;
     }
 
-
     //经过以上处，初步判断tcp包正常，进行入队操作，插入队列前，先进行此包的状态判断，判断此数据包处于何种状态
-    if (!(a_tcp = find_stream(this_tcphdr, this_iphdr, &from_client)))
+    if (!(a_tcp = findStream(this_tcphdr, this_iphdr, &from_client)))
     {
         /*是三次握手的第一个包*/
         /*tcp里流不存在时:且tcp数据包里的(syn=1 && ack==0 && rst==0)时,添加一条tcp流*/
@@ -727,7 +672,7 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
         if ((this_tcphdr->th_flags & TH_SYN) &&
             !(this_tcphdr->th_flags & TH_ACK) &&
             !(this_tcphdr->th_flags & TH_RST))
-            add_new_tcp(this_tcphdr, this_iphdr);//发现新的TCP流，进行添加。
+            addNewtcp(this_tcphdr, this_iphdr,timeStamp);//发现新的TCP流，进行添加。
         /*第一次握手完毕返回*/
         return;
     }
@@ -750,27 +695,23 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
 ************************************************************************/
 
     /*tcp 三次握手， SYN ==1，ACK==1,tcp第二次握手(server -> client的同步响应)*/
-
 //来了一个SYN包
-
     if ((this_tcphdr->th_flags & TH_SYN))
     {
         //syn包是用来建立新连接的，所以，要么来自客户端且没标志（前面处理了），要么来自服务端且加ACK标志
         //所以这里只能来自服务器，检查服务器状态是否正常，不正常的话果断忽略这个包
-
         if (from_client)
         {
             // if timeout since previous
-            if (nids_params.tcp_flow_timeout > 0 &&
-                (a_tcp->ts + nids_params.tcp_flow_timeout < nids_last_pcap_header->ts.tv_sec))
+            if ((a_tcp->ts + 1800 < timeStamp.tv_sec))
             {
                 if (!(this_tcphdr->th_flags & TH_ACK) &&
                     !(this_tcphdr->th_flags & TH_RST))
                 {
                     // cleanup previous
-                    nids_free_tcp_stream(a_tcp);
+                    nidsFreetcpstream(a_tcp);
                     // start new
-                    add_new_tcp(this_tcphdr, this_iphdr);
+                    addNewtcp(this_tcphdr, this_iphdr,timeStamp);
                 }
             }
             return;
@@ -780,7 +721,7 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
             return;
         if (a_tcp->client.seq != ntohl(this_tcphdr->th_ack))
             return;
-        a_tcp->ts = nids_last_pcap_header->ts.tv_sec;
+        a_tcp->ts = timeStamp.tv_sec;
         a_tcp->server.state = TCP_SYN_RECV;
         a_tcp->server.seq = ntohl(this_tcphdr->th_seq) + 1;
         a_tcp->server.first_data_seq = a_tcp->server.seq;
@@ -788,26 +729,30 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
         a_tcp->server.window = ntohs(this_tcphdr->th_win);
         if (a_tcp->client.ts_on)
         {
-            a_tcp->server.ts_on = get_ts(this_tcphdr, &a_tcp->server.curr_ts);
+            a_tcp->server.ts_on = getTs(this_tcphdr, &a_tcp->server.curr_ts);
             if (!a_tcp->server.ts_on)
                 a_tcp->client.ts_on = 0;
         }
         else a_tcp->server.ts_on = 0;
-        if (a_tcp->client.wscale_on) {
-            a_tcp->server.wscale_on = get_wscale(this_tcphdr, &a_tcp->server.wscale);
-            if (!a_tcp->server.wscale_on) {
+        if (a_tcp->client.wscale_on)
+        {
+            a_tcp->server.wscale_on = getWscale(this_tcphdr, &a_tcp->server.wscale);
+            if (!a_tcp->server.wscale_on)
+            {
                 a_tcp->client.wscale_on = 0;
                 a_tcp->client.wscale  = 1;
                 a_tcp->server.wscale = 1;
             }
-        } else {
+        }
+        else
+        {
             a_tcp->server.wscale_on = 0;
             a_tcp->server.wscale = 1;
         }
         return;
     }
     if (
-            ! (  !datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq  )
+            ! (!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq  )
             &&
             ( !before(ntohl(this_tcphdr->th_seq), rcv->ack_seq + rcv->window*rcv->wscale) ||
               before(ntohl(this_tcphdr->th_seq) + datalen, rcv->ack_seq)
@@ -819,101 +764,52 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
     {
         if (a_tcp->nids_state == NIDS_DATA)
         {
-            struct lurker_node *i;
-
             a_tcp->nids_state = NIDS_RESET;
-            for (i = a_tcp->listeners; i; i = i->next)
-                (i->item) (a_tcp, &i->data);
+            for(auto func:tcprstCallback_)
+            {
+                func(a_tcp,timeStamp);
+            }
         }
-        nids_free_tcp_stream(a_tcp);
+        nidsFreetcpstream(a_tcp);
         return;
     }
 
     /* PAWS check */
     /* PAWS(防止重复报文)check 检查时间戳*/
-    if (rcv->ts_on && get_ts(this_tcphdr, &tmp_ts) &&
+    if (rcv->ts_on && getTs(this_tcphdr, &tmp_ts) &&
         before(tmp_ts, snd->curr_ts))
         return;
 
 /**********************************************************************
                         第三次握手包
 
-        **********************************************************************
-    */
+***********************************************************************/
 
     /*
-
-
     从client --> server的包
-
      是从三次握手的第三个包分析开始的，进行一部分数据分析，和初始化
      连接状态
-
     */
     if ((this_tcphdr->th_flags & TH_ACK))//如果是从客户端来的，且两边都在第二次握手的状态上
     {
         if (from_client && a_tcp->client.state == TCP_SYN_SENT &&
-            a_tcp->server.state == TCP_SYN_RECV) {
+            a_tcp->server.state == TCP_SYN_RECV)
+        {
             //在此情况下，流水号又对得上，好的，这个包是第三次握手包，连接建立成功
-            if (ntohl(this_tcphdr->th_ack) == a_tcp->server.seq) {
+            if (ntohl(this_tcphdr->th_ack) == a_tcp->server.seq)
+            {
                 a_tcp->client.state = TCP_ESTABLISHED;
                 //更新客户端状态
                 a_tcp->client.ack_seq = ntohl(this_tcphdr->th_ack);
                 //更新ack序号
-                a_tcp->ts = nids_last_pcap_header->ts.tv_sec;
+                a_tcp->ts = timeStamp.tv_sec;
                 {
-                    struct proc_node *i;
-                    struct lurker_node *j;
                     void *data;
-
                     a_tcp->server.state = TCP_ESTABLISHED;
                     a_tcp->nids_state = NIDS_JUST_EST;
-                    for (i = tcp_procs; i; i = i->next)
+                    for(auto func:tcpconnectionCallback_)
                     {
-                        //此处根据调用者的设定来判断哪些数据需要在回调时返回
-                        char whatto = 0;
-                        char cc = a_tcp->client.collect;
-                        char sc = a_tcp->server.collect;
-                        char ccu = a_tcp->client.collect_urg;
-                        char scu = a_tcp->server.collect_urg;/*进入回调函数处理*/
-
-                        (i->item) (a_tcp, &data);
-                        if (cc < a_tcp->client.collect)
-                            whatto |= COLLECT_cc;
-                        if (ccu < a_tcp->client.collect_urg)
-                            whatto |= COLLECT_ccu;
-                        if (sc < a_tcp->server.collect)
-                            whatto |= COLLECT_sc;
-                        if (scu < a_tcp->server.collect_urg)
-                            whatto |= COLLECT_scu;
-                        if (nids_params.one_loop_less)
-                        {
-                            if (a_tcp->client.collect >=2)
-                            {
-                                a_tcp->client.collect=cc;
-                                whatto&=~COLLECT_cc;
-                            }
-                            if (a_tcp->server.collect >=2 )
-                            {
-                                a_tcp->server.collect=sc;
-                                whatto&=~COLLECT_sc;
-                            }
-                        }
-                        /*加入监听队列，开始数据接收*/
-                        if (whatto)
-                        {
-                            j = (lurker_node*)malloc(sizeof(lurker_node));
-                            j->item = i->item;
-                            j->data = data;
-                            j->whatto = whatto;
-                            j->next = a_tcp->listeners;
-                            a_tcp->listeners = j;
-                        }
-                    }
-                    if (!a_tcp->listeners)
-                    {
-                        nids_free_tcp_stream(a_tcp);
-                        return;
+                        func(a_tcp,timeStamp);
                     }
                     a_tcp->nids_state = NIDS_DATA;
                 }
@@ -924,9 +820,7 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
 
     /*
 ************************************************************
-
                 挥手过程
-
 *************************************************************
 
 */
@@ -934,29 +828,67 @@ void TcpFragment::process_tcp(u_char * data, int skblen)//传入数据与其长�
 /*数据结束的包的判断*/
     if ((this_tcphdr->th_flags & TH_ACK))
     {
-
-        handle_ack(snd, ntohl(this_tcphdr->th_ack));
+        handleAck(snd, ntohl(this_tcphdr->th_ack));
         if (rcv->state == FIN_SENT)
             rcv->state = FIN_CONFIRMED;
         if (rcv->state == FIN_CONFIRMED && snd->state == FIN_CONFIRMED)
         {
-            struct lurker_node *i;
             a_tcp->nids_state = NIDS_CLOSE;
-            for (i = a_tcp->listeners; i; i = i->next)
-                (i->item) (a_tcp, &i->data);
-            nids_free_tcp_stream(a_tcp);
+            for (auto func:tcpcloseCallbacks_)
+            {
+                func(a_tcp,timeStamp);
+            }
+            nidsFreetcpstream(a_tcp);
             return;
         }
     }
     if (datalen + (this_tcphdr->th_flags & TH_FIN) > 0)
-        tcp_queue(a_tcp, this_tcphdr, snd, rcv,
-                  (char *) (this_tcphdr) + 4 * this_tcphdr->th_off,
-                  datalen, skblen);
+        tcpQueue(a_tcp, this_tcphdr, snd, rcv,
+                 (char *) (this_tcphdr) + 4 * this_tcphdr->th_off,
+                 datalen, skblen,timeStamp);
     snd->window = ntohs(this_tcphdr->th_win);
     if (rcv->rmem_alloc > 65535)
-        prune_queue(rcv, this_tcphdr);
-    /*不存在监听者*/
-    if (!a_tcp->listeners)
-        nids_free_tcp_stream(a_tcp);
+        pruneQueue(rcv, this_tcphdr);
+}
+
+void TcpFragment::notify(struct tcpStream * a_tcp, struct halfStream * rcv,timeval timeStamp)
+{
+    struct lurker_node *i, **prev_addr;
+    char mask;
+
+    if (rcv->count_new_urg)
+    {
+        for(auto func:tcpdataCallback_)
+        {
+            func(a_tcp,timeStamp);
+        }
+        goto prune_listeners;
+    }
+
+    if (rcv->collect)
+    {
+        do
+        {
+            int total;
+            a_tcp->read = rcv->count - rcv->offset;
+            total=a_tcp->read;
+            for(auto func:tcpdataCallback_)
+            {
+                func(a_tcp,timeStamp);
+            }
+            if (a_tcp->read>total-rcv->count_new)
+                rcv->count_new=total-a_tcp->read;
+
+            if (a_tcp->read > 0)
+            {
+                memmove(rcv->data, rcv->data + a_tcp->read, rcv->count - rcv->offset - a_tcp->read);
+                rcv->offset += a_tcp->read;
+            }
+        }while (a_tcp->read>0 && rcv->count_new);
+// we know that if one_loop_less!=0, we have only one callback to notify
+        rcv->count_new=0;
+    }
+    prune_listeners:
+    return;
 }
 

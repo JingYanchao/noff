@@ -27,14 +27,6 @@
 
 #define EXP_SEQ (snd->first_data_seq + rcv->count + rcv->urg_count)
 
-struct lurker_node
-{
-    void (*item)();
-    void *data;
-    char whatto;
-    struct lurker_node *next;
-};
-
 struct skbuff
 {
 //万年不变的next和prev，这向我们昭示了这是一个双向队列。
@@ -55,12 +47,12 @@ struct skbuff
 };
 
 //超时链表
-struct tcp_timeout
+struct tcpTimeout
 {
-    struct tcp_stream *a_tcp;
+    struct tcpStream *a_tcp;
     struct timeval timeout;
-    struct tcp_timeout *next;
-    struct tcp_timeout *prev;
+    struct tcpTimeout *next;
+    struct tcpTimeout *prev;
 };
 
 struct tuple4
@@ -71,7 +63,7 @@ struct tuple4
     u_int daddr;
 };
 
-struct half_stream
+struct halfStream
 {
     char state;
     char collect;
@@ -102,20 +94,19 @@ struct half_stream
     struct skbuff *listtail;
 };
 
-struct tcp_stream
+struct tcpStream
 {
     struct tuple4 addr;
     char nids_state;
-    struct lurker_node *listeners;
-    struct half_stream client;
-    struct half_stream server;
-    struct tcp_stream *next_node;
-    struct tcp_stream *prev_node;
+    struct halfStream client;
+    struct halfStream server;
+    struct tcpStream *next_node;
+    struct tcpStream *prev_node;
     int hash_index;
-    struct tcp_stream *next_time;
-    struct tcp_stream *prev_time;
+    struct tcpStream *next_time;
+    struct tcpStream *prev_time;
     int read;
-    struct tcp_stream *next_free;
+    struct tcpStream *next_free;
     void *user;
     long ts;
 };
@@ -123,64 +114,83 @@ struct tcp_stream
 class TcpFragment
 {
 public:
-    typedef std::function<void()> TcpCallback;
-    typedef std::function<void()> TcptimeoutCallback;
-    void addTcpCallback(TcpCallback& cb)
+    typedef std::function<void(tcpStream*,timeval)> TcpCloseCallback;
+    typedef std::function<void(tcpStream*,timeval)> TcptimeoutCallback;
+    typedef std::function<void(tcpStream*,timeval)> TcpRstCallback;
+    typedef std::function<void(tcpStream*,timeval)> TcpConnectionCallback;
+    typedef std::function<void(tcpStream*,timeval)> TcpDataCallback;
+
+    void addTcpCallback(TcpCloseCallback& cb)
     {
-        tcpCallbacks_.push_back(cb);
+        tcpcloseCallbacks_.push_back(cb);
     }
 
     void addTcptimeoutCallback(TcptimeoutCallback& cb)
     {
         tcptimeoutCallback_.push_back(cb);
     }
-    TcpFragment(int);
+
+    void addRstCallback(TcpRstCallback& cb)
+    {
+        tcprstCallback_.push_back(cb);
+    }
+
+    void addConnectionCallback(TcpConnectionCallback& cb)
+    {
+        tcpconnectionCallback_.push_back(cb);
+    }
+
+    void addDataCallback(TcpDataCallback& cb)
+    {
+        tcpdataCallback_.push_back(cb);
+    }
+
+    TcpFragment();
     ~TcpFragment();
 
 
-    void process_tcp(u_char *, int);
-    void tcp_check_timeouts();
+    void processTcp(u_char *, int,timeval);
+    void tcpChecktimeouts(timeval);
 
 private:
-    std::vector<TcpCallback>    tcpCallbacks_;
-    std::vector<TcpCallback>    tcptimeoutCallback_;
+    std::vector<TcpCloseCallback>      tcpcloseCallbacks_;
+    std::vector<TcptimeoutCallback>    tcptimeoutCallback_;
+    std::vector<TcpRstCallback>        tcprstCallback_;
+    std::vector<TcpRstCallback>        tcpconnectionCallback_;
+    std::vector<TcpRstCallback>        tcpdataCallback_;
 
-    struct tcp_stream **tcp_stream_table;
-    struct tcp_stream *streams_pool;
-    int tcp_num = 0;
-    int tcp_stream_table_size;
-    int max_stream;
-    struct tcp_stream *tcp_latest = 0, *tcp_oldest = 0;
-    struct tcp_stream *free_streams;
-    struct ip *ugly_iphdr;
-    struct tcp_timeout *nids_tcp_timeouts = 0;
+    struct tcpStream **tcpStreamTable;
+    struct tcpStream *streamsPool;
+    int tcpNum = 0;
+    int tcpStreamTableSize;
+    int maxStream;
+    struct tcpStream *tcpLatest = 0, *tcpOldest = 0;
+    struct tcpStream *freeStreams;
+    struct ip *uglyIphdr;
+    struct tcpTimeout *nidsTcpTimeouts = 0;
     Hash hash;
 
-    int tcp_init(int);
-    void tcp_exit(void);
-    void nids_free_tcp_stream(struct tcp_stream * a_tcp);
-    void purge_queue(struct half_stream * h);
-    void del_tcp_closing_timeout(struct tcp_stream * a_tcp);
-    void add_tcp_closing_timeout(struct tcp_stream * a_tcp);
-    void add2buf(struct half_stream * rcv, char *data, int datalen);
-    void add_from_skb(struct tcp_stream * a_tcp, struct half_stream * rcv,
-                      struct half_stream * snd,
-                      u_char *data, int datalen,
-                      u_int this_seq, char fin, char urg, u_int urg_ptr);
-    void tcp_queue(struct tcp_stream * a_tcp, struct tcphdr * this_tcphdr,
-                   struct half_stream * snd, struct half_stream * rcv,
-                   char *data, int datalen, int skblen);
-    int get_ts(struct tcphdr * this_tcphdr, unsigned int * ts);
-    int get_wscale(struct tcphdr * this_tcphdr, unsigned int * ws);
-    void prune_queue(struct half_stream * rcv, struct tcphdr * this_tcphdr);
-    void handle_ack(struct half_stream * snd, u_int acknum);
-    void add_new_tcp(struct tcphdr * this_tcphdr, struct ip * this_iphdr);
-    tcp_stream *find_stream(struct tcphdr * this_tcphdr, struct ip * this_iphdr, int *from_client);
-    tcp_stream *nids_find_tcp_stream(struct tuple4 *addr);
-
-
+    int tcpInit(int);
+    void tcpExit(void);
+    void notify(struct tcp_stream * a_tcp, struct half_stream * rcv,timeval);
+    void nidsFreetcpstream(struct tcpStream *a_tcp);
+    void purgeQueue(struct halfStream *h);
+    void delTcpclosingtimeout(struct tcpStream *a_tcp);
+    void addTcpclosingtimeout(struct tcpStream *a_tcp,timeval);
+    void add2buf(struct halfStream * rcv, char *data, int datalen);
+    void addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
+                    struct halfStream *snd,
+                    u_char *data, int datalen,
+                    u_int this_seq, char fin, char urg, u_int urg_ptr,timeval);
+    void tcpQueue(struct tcpStream *a_tcp, struct tcphdr *this_tcphdr,
+                  struct halfStream *snd, struct halfStream *rcv,
+                  char *data, int datalen, int skblen,timeval);
+    int getTs(struct tcphdr *this_tcphdr, unsigned int *ts);
+    int getWscale(struct tcphdr *this_tcphdr, unsigned int *ws);
+    void pruneQueue(struct halfStream *rcv, struct tcphdr *this_tcphdr);
+    void handleAck(struct halfStream *snd, u_int acknum);
+    void addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,timeval);
+    tcpStream *findStream(struct tcphdr *this_tcphdr, struct ip *this_iphdr, int *from_client);
+    tcpStream *nidsFindtcpStream(struct tuple4 *addr);
 };
-
-
-
 #endif //NOFF_TCPFRAGMENT_H

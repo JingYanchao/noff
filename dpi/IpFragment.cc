@@ -11,31 +11,31 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 
-Ip_fragment::Ip_fragment()
+IpFragment::IpFragment()
 {
     struct timeval tv;
 
     gettimeofday(&tv, 0);
     time0 = tv.tv_sec;
-    fragtable = (struct hostfrags **) calloc(3001, sizeof(struct hostfrags *));
+    fragtable = (struct hostFrags **) calloc(3001, sizeof(struct hostFrags *));
     if (!fragtable)
         LOG_ERROR<<"ip_frag_init";
     hash_size = 3001;
 }
 
-Ip_fragment::Ip_fragment(size_t n)
+IpFragment::IpFragment(size_t n)
 {
     struct timeval tv;
 
     gettimeofday(&tv, 0);
     time0 = tv.tv_sec;
-    fragtable = (struct hostfrags **) calloc(n, sizeof(struct hostfrags *));
+    fragtable = (struct hostFrags **) calloc(n, sizeof(struct hostFrags *));
     if (!fragtable)
         LOG_ERROR<<"ip_frag_init";
     hash_size = n;
 }
 
-Ip_fragment::~Ip_fragment()
+IpFragment::~IpFragment()
 {
     if (fragtable)
     {
@@ -45,7 +45,7 @@ Ip_fragment::~Ip_fragment()
 }
 
 
-int Ip_fragment::jiffies()
+int IpFragment::jiffies()
 {
     struct timeval tv;
     if (timenow)
@@ -55,7 +55,7 @@ int Ip_fragment::jiffies()
     return timenow;
 }
 
-void Ip_fragment::startIpfragProc(ip *data, int len)
+void IpFragment::startIpfragProc(ip *data, int len,timeval timeStamp)
 {
     struct proc_node *i;
     struct ip *iph = data;
@@ -89,12 +89,12 @@ void Ip_fragment::startIpfragProc(ip *data, int len)
     skblen = (skblen + 15) & ~15;
     skblen += 168; //sk_buff_size;
 
-    genIpProc(reinterpret_cast<u_char *>(iph), skblen);
+    genIpProc(reinterpret_cast<u_char *>(iph), skblen,timeStamp);
     if (need_free)
         free(iph);
 }
 
-void Ip_fragment::genIpProc(u_char *data, int skblen)
+void IpFragment::genIpProc(u_char *data, int skblen,timeval timeStamp)
 {
 
     switch (((ip *) data)->ip_p)
@@ -104,7 +104,7 @@ void Ip_fragment::genIpProc(u_char *data, int skblen)
             tcphdr *this_tcphdr = (tcphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:tcpCallbacks_)
             {
-                func(this_tcphdr, skblen-4*((ip *) data)->ip_p);
+                func(this_tcphdr, skblen-4*((ip *) data)->ip_p,timeStamp);
             }
             break;
         }
@@ -113,15 +113,16 @@ void Ip_fragment::genIpProc(u_char *data, int skblen)
             udphdr *this_udphdr = (udphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:udpCallbacks_)
             {
-                func(this_udphdr,skblen-4*((ip *) data)->ip_p);
+                func(this_udphdr,skblen-4*((ip *) data)->ip_p,timeStamp);
             }
             break;
         }
         case IPPROTO_ICMP:
         {
+            icmphdr *this_icmphdr = (icmphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:icmpCallbacks_)
             {
-                func(data);
+                func(this_icmphdr,skblen-4*((ip *) data)->ip_p,timeStamp);
             }
             break;
         }
@@ -130,10 +131,10 @@ void Ip_fragment::genIpProc(u_char *data, int skblen)
     }
 }
 
-char* Ip_fragment::ipDefrag(struct ip *iph, struct sk_buff *skb)
+char* IpFragment::ipDefrag(struct ip *iph, struct skBuff *skb)
 {
-    struct ipfrag *prev, *next, *tmp;
-    struct ipfrag *tfp;
+    struct ipFrag *prev, *next, *tmp;
+    struct ipFrag *tfp;
     struct ipq *qp;
     char *skb2;
     unsigned char *ptr;
@@ -281,7 +282,7 @@ char* Ip_fragment::ipDefrag(struct ip *iph, struct sk_buff *skb)
             next = tfp;		/* We have killed the original next frame */
 
             fragKfreeskb(tmp->skb, FREE_READ);
-            fragKfrees(tmp, sizeof(struct ipfrag));
+            fragKfrees(tmp, sizeof(struct ipFrag));
         }
     }
 
@@ -329,10 +330,10 @@ char* Ip_fragment::ipDefrag(struct ip *iph, struct sk_buff *skb)
 
 
 
-int Ip_fragment::ipDefragStub(struct ip *iph, struct ip **defrag)
+int IpFragment::ipDefragStub(struct ip *iph, struct ip **defrag)
 {
     int offset, flags, tot_len;
-    struct sk_buff *skb;
+    struct skBuff *skb;
 
     numpack++;
     timenow = 0;
@@ -353,7 +354,7 @@ int Ip_fragment::ipDefragStub(struct ip *iph, struct ip **defrag)
 
     //此包是分片，先申请一个sk_buff把分片的数据保存起来，然后交给defrag函数
     tot_len = ntohs(iph->ip_len);
-    skb = (struct sk_buff *) malloc(tot_len + sizeof(struct sk_buff));
+    skb = (struct skBuff *) malloc(tot_len + sizeof(struct skBuff));
     if (!skb)
         LOG_ERROR<<"Out of memory in skb";
     skb->data = (char *) (skb + 1);
@@ -371,11 +372,11 @@ int Ip_fragment::ipDefragStub(struct ip *iph, struct ip **defrag)
 }
 
 //根据所有分片拼接成一个完整的报文
-char* Ip_fragment::ipGlue(struct ipq *qp)
+char* IpFragment::ipGlue(struct ipq *qp)
 {
     char *skb;
     struct ip *iph;
-    struct ipfrag *fp;
+    struct ipFrag *fp;
     unsigned char *ptr;
     int count, len;
 
@@ -434,9 +435,9 @@ char* Ip_fragment::ipGlue(struct ipq *qp)
 
 
 //看一个分片序列是否重组完成
-int Ip_fragment::ipDone(struct ipq *qp)
+int IpFragment::ipDone(struct ipq *qp)
 {
-    struct ipfrag *fp;
+    struct ipFrag *fp;
     int offset;
 
     /* Only possible if we received the final fragment. */
@@ -459,7 +460,7 @@ int Ip_fragment::ipDone(struct ipq *qp)
 
 
 //创建一个新的ip重组队列
-ipq* Ip_fragment::ipCreate(struct ip *iph)
+ipq* IpFragment::ipCreate(struct ip *iph)
 {
     struct ipq *qp;
     int ihlen;
@@ -505,7 +506,7 @@ ipq* Ip_fragment::ipCreate(struct ip *iph)
 }
 
 
-void Ip_fragment::ipEvictor(void)
+void IpFragment::ipEvictor(void)
 {
     // fprintf(stderr, "ip_evict:numpack=%i\n", numpack);
     while (this_host && this_host->ip_frag_mem > IPFRAG_LOW_THRESH)
@@ -521,7 +522,7 @@ void Ip_fragment::ipEvictor(void)
 
 
 //一个队列超时,清除这个队列
-void Ip_fragment::ipExpire(unsigned long arg)
+void IpFragment::ipExpire(unsigned long arg)
 {
     struct ipq *qp;
 
@@ -533,10 +534,10 @@ void Ip_fragment::ipExpire(unsigned long arg)
 
 
 
-void Ip_fragment::ipFree(struct ipq *qp)
+void IpFragment::ipFree(struct ipq *qp)
 {
-    struct ipfrag *fp;
-    struct ipfrag *xp;
+    struct ipFrag *fp;
+    struct ipFrag *xp;
 
     /* Stop the timer for this entry. */
     delTimer(&qp->timer);
@@ -562,7 +563,7 @@ void Ip_fragment::ipFree(struct ipq *qp)
     {
         xp = fp->next;
         fragKfreeskb(fp->skb, FREE_READ);
-        fragKfrees(fp, sizeof(struct ipfrag));
+        fragKfrees(fp, sizeof(struct ipFrag));
         fp = xp;
     }
     /* Release the IP header. */
@@ -572,23 +573,23 @@ void Ip_fragment::ipFree(struct ipq *qp)
     fragKfrees(qp, sizeof(struct ipq));
 }
 
-void Ip_fragment::atomicSub(int ile, int *co)
+void IpFragment::atomicSub(int ile, int *co)
 {
     *co -= ile;
 }
 
-void Ip_fragment::atomicAdd(int ile, int *co)
+void IpFragment::atomicAdd(int ile, int *co)
 {
     *co += ile;
 }
 
-void Ip_fragment::kfreeSkb(struct sk_buff *skb, int type)
+void IpFragment::kfreeSkb(struct skBuff *skb, int type)
 {
     (void)type;
     free(skb);
 }
 
-void Ip_fragment::addTimer(struct timer_list *x)
+void IpFragment::addTimer(struct timerList *x)
 {
     if (timer_tail)
     {
@@ -605,7 +606,7 @@ void Ip_fragment::addTimer(struct timer_list *x)
     }
 }
 
-void Ip_fragment::delTimer(struct timer_list *x)
+void IpFragment::delTimer(struct timerList *x)
 {
     if (x->prev)
         x->prev->next = x->next;
@@ -618,21 +619,21 @@ void Ip_fragment::delTimer(struct timer_list *x)
 }
 
 
-void Ip_fragment::fragKfreeskb(struct sk_buff *skb, int type)
+void IpFragment::fragKfreeskb(struct skBuff *skb, int type)
 {
     if (this_host)
         atomicSub(skb->truesize, &this_host->ip_frag_mem);
     kfreeSkb(skb, type);
 }
 
-void Ip_fragment::fragKfrees(void *ptr, int len)
+void IpFragment::fragKfrees(void *ptr, int len)
 {
     if (this_host)
         atomicSub(len, &this_host->ip_frag_mem);
     free(ptr);
 }
 
-void* Ip_fragment::fragKmalloc(int size, int dummy)
+void* IpFragment::fragKmalloc(int size, int dummy)
 {
     void *vp = (void *) malloc(size);
     (void)dummy;
@@ -644,18 +645,18 @@ void* Ip_fragment::fragKmalloc(int size, int dummy)
 }
 
 /* Create a new fragment entry. */
-ipfrag* Ip_fragment::ip_frag_create(int offset, int end, struct sk_buff * skb, unsigned char *ptr)
+ipFrag* IpFragment::ip_frag_create(int offset, int end, struct skBuff * skb, unsigned char *ptr)
 {
-    struct ipfrag *fp;
+    struct ipFrag *fp;
 
-    fp = (struct ipfrag *) fragKmalloc(sizeof(struct ipfrag), GFP_ATOMIC);
+    fp = (struct ipFrag *) fragKmalloc(sizeof(struct ipFrag), GFP_ATOMIC);
     if (fp == NULL)
     {
         // NETDEBUG(printk("IP: frag_create: no memory left !\n"));
         LOG_ERROR << "ip_frag_create is not create";
         exit(1);
     }
-    memset(fp, 0, sizeof(struct ipfrag));
+    memset(fp, 0, sizeof(struct ipFrag));
 
     /* Fill in the structure. */
     fp->offset = offset;
@@ -671,16 +672,16 @@ ipfrag* Ip_fragment::ip_frag_create(int offset, int end, struct sk_buff * skb, u
 }
 
 //生成目的地址的hash值
-int Ip_fragment::fragIndex(struct ip *iph)
+int IpFragment::fragIndex(struct ip *iph)
 {
     unsigned int ip = ntohl(iph->ip_dst.s_addr);
     return (ip % hash_size);
 }
 
-int Ip_fragment::hostfragFind(struct ip *iph)
+int IpFragment::hostfragFind(struct ip *iph)
 {
     int hash_index = fragIndex(iph);
-    struct hostfrags *hf;
+    struct hostFrags *hf;
 
     this_host = 0;
     for (hf = fragtable[hash_index]; hf; hf = hf->next)
@@ -695,9 +696,9 @@ int Ip_fragment::hostfragFind(struct ip *iph)
         return 1;
 }
 
-void Ip_fragment::hostfragCreate(struct ip *iph)
+void IpFragment::hostfragCreate(struct ip *iph)
 {
-    struct hostfrags *hf = mknew(struct hostfrags);
+    struct hostFrags *hf = mknew(struct hostFrags);
     int hash_index = fragIndex(iph);
 
     hf->prev = 0;
@@ -712,7 +713,7 @@ void Ip_fragment::hostfragCreate(struct ip *iph)
     this_host = hf;
 }
 
-void Ip_fragment::rmthisHost()
+void IpFragment::rmthisHost()
 {
     int hash_index = this_host->hash_index;
 
@@ -736,7 +737,7 @@ void Ip_fragment::rmthisHost()
   Find the correct entry in the "incomplete datagrams" queue for this
   IP datagram, and return the queue entry address if found.
 */
-ipq* Ip_fragment::ipFind(struct ip *iph)
+ipq* IpFragment::ipFind(struct ip *iph)
 {
     struct ipq *qp;
     struct ipq *qplast;

@@ -55,7 +55,7 @@ int main()
     cap.setFilter("ip");
 
     // customized function, count IP fragments
-    Ip_fragment frag[1];
+    IpFragment frag[1];
 
     // connect Dispatcher and IpFragmentCounter
     size_t nWorkers = 1;
@@ -65,7 +65,7 @@ int main()
         frag[i].addTcpCallback(std::bind(&protocol::tcp_output,&ptc,std::placeholders::_1,std::placeholders::_2));
         frag[i].addUdpCallback(std::bind(&protocol::udp_output,&ptc,std::placeholders::_1));
         frag[i].addIcmpCallback(std::bind(&protocol::icmp_output,&ptc,std::placeholders::_1));
-        callbacks.push_back(std::bind(&Ip_fragment::startIpfragProc, &frag[i], std::placeholders::_1, std::placeholders::_2));
+        callbacks.push_back(std::bind(&IpFragment::startIpfragProc, &frag[i], std::placeholders::_1, std::placeholders::_2));
     }
 
     // if queue is full, Dispatcher will warn
