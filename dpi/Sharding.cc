@@ -13,6 +13,7 @@
 #include <muduo/base/Exception.h>
 
 #include "Sharding.h"
+#include <assert.h>
 
 namespace
 {
@@ -35,11 +36,10 @@ Tuple4 getTuple4(const ip* hdr, int len)
 
     switch (hdr->ip_p) {
 
-        case IPPROTO_TCP:
-        {
-            tcphdr *tcp = (tcphdr*)data;
+        case IPPROTO_TCP: {
+            tcphdr *tcp = (tcphdr *) data;
 
-            if (len < (int)sizeof(tcphdr)) {
+            if (len < (int) sizeof(tcphdr)) {
                 throw muduo::Exception("TCP header too short");
             }
 
@@ -47,11 +47,10 @@ Tuple4 getTuple4(const ip* hdr, int len)
             dstPort = tcp->th_dport;
         }
             break;
-        case IPPROTO_UDP:
-        {
-            udphdr *udp = (udphdr*)data;
+        case IPPROTO_UDP: {
+            udphdr *udp = (udphdr *) data;
 
-            if (len < (int)sizeof(udphdr)) {
+            if (len < (int) sizeof(udphdr)) {
                 throw muduo::Exception("UDP header too short");
             }
 
@@ -64,7 +63,11 @@ Tuple4 getTuple4(const ip* hdr, int len)
             srcPort = dstPort = 928;
             break;
         default:
-            throw muduo::Exception("unsupported protocol");
+        {
+            char str[32];
+            snprintf(str, sizeof str, "unsupported protocol(0x%x)", hdr->ip_p);
+            throw muduo::Exception(str);
+        }
     }
 
     return { hdr->ip_src.s_addr,
