@@ -18,15 +18,7 @@
 namespace
 {
 
-struct Tuple4
-{
-    u_int       srcIP;
-    u_int       dstIP;
-    u_int16_t   srcPort;
-    u_int16_t   dstPort;
-};
-
-Tuple4 getTuple4(const ip* hdr, int len)
+Sharding::Tuple4 getTuple4(const ip* hdr, int len)
 {
     u_int16_t   srcPort, dstPort;
     u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
@@ -78,7 +70,6 @@ Tuple4 getTuple4(const ip* hdr, int len)
 
 }
 
-
 Sharding::Sharding()
 {
     int i, n, j;
@@ -98,10 +89,15 @@ Sharding::Sharding()
 
 u_int Sharding::operator()(const ip* hdr, int len)
 {
+    Tuple4 t = getTuple4(hdr, len);
+
+    return (*this)(t, len);
+}
+
+u_int Sharding::operator()(Sharding::Tuple4 t, int len)
+{
     u_int   res = 0;
     u_char  data[12];
-
-    Tuple4 t = getTuple4(hdr, len);;
 
     u_int *stupid_strict_aliasing_warnings=(u_int*)data;
     *stupid_strict_aliasing_warnings = t.srcIP;
