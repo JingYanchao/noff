@@ -96,33 +96,31 @@ void IpFragment::startIpfragProc(ip *data, int len,timeval timeStamp)
 
 void IpFragment::genIpProc(u_char *data, int skblen,timeval timeStamp)
 {
-
+    ip *this_iphdr = (ip *)(data);
     switch (((ip *) data)->ip_p)
     {
+
         case IPPROTO_TCP:
         {
-            tcphdr *this_tcphdr = (tcphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:tcpCallbacks_)
             {
-                func(this_tcphdr, skblen-4*((ip *) data)->ip_p,timeStamp);
+                func(this_iphdr, skblen,timeStamp);
             }
             break;
         }
         case IPPROTO_UDP:
         {
-            udphdr *this_udphdr = (udphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:udpCallbacks_)
             {
-                func(this_udphdr,skblen-4*((ip *) data)->ip_p,timeStamp);
+                func(this_iphdr,skblen,timeStamp);
             }
             break;
         }
         case IPPROTO_ICMP:
         {
-            icmphdr *this_icmphdr = (icmphdr *)(data + 4*((ip *) data)->ip_p);
             for(auto& func:icmpCallbacks_)
             {
-                func(this_icmphdr,skblen-4*((ip *) data)->ip_p,timeStamp);
+                func(this_iphdr,skblen,timeStamp);
             }
             break;
         }

@@ -9,6 +9,7 @@
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
+#include <string.h>
 
 #include <muduo/base/Exception.h>
 
@@ -86,16 +87,16 @@ Tuple4 getTuple4(const ip* hdr, int len)
 Sharding::Sharding()
 {
     int i, n, j;
-    int p[12];
+    int p[6];
 
     initRandom();
-    for (i = 0; i < 12; i++)
+    for (i = 0; i < 6; i++)
         p[i] = i;
-    for (i = 0; i < 12; i++) {
-        n = perm_[i] % (12 - i);
+    for (i = 0; i < 6; i++) {
+        n = perm_[i] % (6 - i);
         perm_[i] = (u_char) p[n];
 
-        for (j = 0; j < 11 - n; j++)
+        for (j = 0; j < 5 - n; j++)
             p[n + j] = p[n + j + 1];
     }
 }
@@ -103,18 +104,17 @@ Sharding::Sharding()
 u_int Sharding::operator()(const ip* hdr, int len)
 {
     u_int   res = 0;
-    u_char  data[12];
+    u_char  data[6];
 
     Tuple4 t = getTuple4(hdr, len);;
 
-    u_int *stupid_strict_aliasing_warnings=(u_int*)data;
-    *stupid_strict_aliasing_warnings = t.srcIP;
 
-    *(u_int *) (data + 4) = t.dstIP;
-    *(u_int16_t *) (data + 8) = t.srcPort;
-    *(u_int16_t *) (data + 10) = t.dstPort;
 
-    for (int i = 0; i < 12; i++)
+    u_int flag1 = t.dstIP^t.srcIP;
+    u_short flag2 = t.dstPort^t.srcPort;
+    memmove(data, &flag1, 4);
+    memmove(data+4,&flag2,2);
+    for (int i = 0; i < 6; i++)
         res = ( (res << 8) + (data[perm_[i]] ^ xor_[i])) % 0xff100f;
 
     return res;
@@ -128,8 +128,8 @@ void Sharding::initRandom()
 
     fd = open("/dev/urandom", O_RDONLY);
     if (fd > 0) {
-        read(fd, xor_, 12);
-        read(fd, perm_, 12);
+        read(fd, xor_, 6);
+        read(fd, perm_, 6);
         close(fd);
         return;
     }

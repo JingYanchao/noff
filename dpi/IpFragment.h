@@ -92,9 +92,9 @@ class IpFragment:muduo::noncopyable
 {
 public:
     typedef std::function<void(ip*,int,timeval)>         IpCallback;
-    typedef std::function<void(tcphdr*,int,timeval)>     TcpCallback;
-    typedef std::function<void(udphdr*, int,timeval)>    UdpCallback;
-    typedef std::function<void(icmphdr*,int,timeval)>    IcmpCallback;
+    typedef std::function<void(ip*,int,timeval)>     TcpCallback;
+    typedef std::function<void(ip*, int,timeval)>    UdpCallback;
+    typedef std::function<void(ip*,int,timeval)>    IcmpCallback;
     IpFragment();
     IpFragment(size_t n);
     ~IpFragment();

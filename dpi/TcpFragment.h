@@ -6,9 +6,11 @@
 #define NOFF_TCPFRAGMENT_H
 
 #include "Hash.h"
+#include "util.h"
 #include <stdlib.h>
 #include <functional>
 #include <vector>
+#include <netinet/ip.h>
 
 # define NIDS_JUST_EST 1
 # define NIDS_DATA 2
@@ -53,14 +55,6 @@ struct tcpTimeout
     struct timeval timeout;
     struct tcpTimeout *next;
     struct tcpTimeout *prev;
-};
-
-struct tuple4
-{
-    u_short source;
-    u_short dest;
-    u_int saddr;
-    u_int daddr;
 };
 
 struct halfStream
@@ -114,33 +108,30 @@ struct tcpStream
 class TcpFragment
 {
 public:
-    typedef std::function<void(tcpStream*,timeval)> TcpCloseCallback;
-    typedef std::function<void(tcpStream*,timeval)> TcptimeoutCallback;
-    typedef std::function<void(tcpStream*,timeval)> TcpRstCallback;
-    typedef std::function<void(tcpStream*,timeval)> TcpConnectionCallback;
-    typedef std::function<void(tcpStream*,timeval)> TcpDataCallback;
+    typedef std::function<void(tcpStream*,timeval)> TcpCallback;
 
-    void addTcpCallback(TcpCloseCallback& cb)
+
+    void addTcpcloseCallback(const TcpCallback& cb)
     {
         tcpcloseCallbacks_.push_back(cb);
     }
 
-    void addTcptimeoutCallback(TcptimeoutCallback& cb)
+    void addTcptimeoutCallback(const TcpCallback& cb)
     {
         tcptimeoutCallback_.push_back(cb);
     }
 
-    void addRstCallback(TcpRstCallback& cb)
+    void addRstCallback(const TcpCallback& cb)
     {
         tcprstCallback_.push_back(cb);
     }
 
-    void addConnectionCallback(TcpConnectionCallback& cb)
+    void addConnectionCallback(const TcpCallback& cb)
     {
         tcpconnectionCallback_.push_back(cb);
     }
 
-    void addDataCallback(TcpDataCallback& cb)
+    void addDataCallback(const TcpCallback& cb)
     {
         tcpdataCallback_.push_back(cb);
     }
@@ -149,15 +140,15 @@ public:
     ~TcpFragment();
 
 
-    void processTcp(u_char *, int,timeval);
+    void processTcp(ip *,int,timeval);
     void tcpChecktimeouts(timeval);
 
 private:
-    std::vector<TcpCloseCallback>      tcpcloseCallbacks_;
-    std::vector<TcptimeoutCallback>    tcptimeoutCallback_;
-    std::vector<TcpRstCallback>        tcprstCallback_;
-    std::vector<TcpRstCallback>        tcpconnectionCallback_;
-    std::vector<TcpRstCallback>        tcpdataCallback_;
+    std::vector<TcpCallback>        tcpcloseCallbacks_;
+    std::vector<TcpCallback>        tcptimeoutCallback_;
+    std::vector<TcpCallback>        tcprstCallback_;
+    std::vector<TcpCallback>        tcpconnectionCallback_;
+    std::vector<TcpCallback>        tcpdataCallback_;
 
     struct tcpStream **tcpStreamTable;
     struct tcpStream *streamsPool;
@@ -165,14 +156,14 @@ private:
     int tcpStreamTableSize;
     int maxStream;
     struct tcpStream *tcpLatest = 0, *tcpOldest = 0;
+    ip* uglyIphdr;
     struct tcpStream *freeStreams;
-    struct ip *uglyIphdr;
     struct tcpTimeout *nidsTcpTimeouts = 0;
     Hash hash;
 
     int tcpInit(int);
     void tcpExit(void);
-    void notify(struct tcp_stream * a_tcp, struct half_stream * rcv,timeval);
+    void notify(struct tcpStream * a_tcp, struct halfStream * rcv,timeval);
     void nidsFreetcpstream(struct tcpStream *a_tcp);
     void purgeQueue(struct halfStream *h);
     void delTcpclosingtimeout(struct tcpStream *a_tcp);

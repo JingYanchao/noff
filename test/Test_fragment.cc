@@ -1,9 +1,9 @@
 //
 // Created by jyc on 17-4-16.
 //
-#include "Capture.h"
-#include "Dispatcher.h"
-#include "IpFragment.h"
+#include "../dpi/Capture.h"
+#include "../dpi/Dispatcher.h"
+#include "../dpi/IpFragment.h"
 
 #include <signal.h>
 
@@ -12,17 +12,17 @@
 class protocol
 {
 public:
-    void tcp_output(u_char* data,int len)
+    void tcp_output(ip* data,int len,timeval timeStamp)
     {
         tcp_num.add(1);
     }
 
-    void udp_output(char* data)
+    void udp_output(ip* data,int len,timeval timeStamp)
     {
         udp_num.add(1);
     }
 
-    void icmp_output(u_char* data)
+    void icmp_output(ip* data,int len,timeval timeStamp)
     {
         icmp_num.add(1);
     }
@@ -62,10 +62,10 @@ int main()
     std::vector<Dispatcher::IpFragmentCallback> callbacks;
     for(int i=0;i<1;i++)
     {
-        frag[i].addTcpCallback(std::bind(&protocol::tcp_output,&ptc,std::placeholders::_1,std::placeholders::_2));
-        frag[i].addUdpCallback(std::bind(&protocol::udp_output,&ptc,std::placeholders::_1));
-        frag[i].addIcmpCallback(std::bind(&protocol::icmp_output,&ptc,std::placeholders::_1));
-        callbacks.push_back(std::bind(&IpFragment::startIpfragProc, &frag[i], std::placeholders::_1, std::placeholders::_2));
+        frag[i].addTcpCallback(std::bind(&protocol::tcp_output,&ptc,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
+        frag[i].addUdpCallback(std::bind(&protocol::udp_output,&ptc,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
+        frag[i].addIcmpCallback(std::bind(&protocol::icmp_output,&ptc,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
+        callbacks.push_back(std::bind(&IpFragment::startIpfragProc, &frag[i], std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
     }
 
     // if queue is full, Dispatcher will warn
@@ -74,7 +74,7 @@ int main()
 
     // connect Capture and Dispatcher
     cap.addIpFragmentCallback(std::bind(
-            &Dispatcher::onIpFragment, &dispatcher,std::placeholders:: _1, std::placeholders::_2));
+            &Dispatcher::onIpFragment, &dispatcher,std::placeholders:: _1, std::placeholders::_2,std::placeholders::_3));
 
     cap.startLoop(0);
 }

@@ -17,8 +17,8 @@ public:
 private:
     void initRandom();
 
-    u_char xor_[12];
-    u_char perm_[12];
+    u_char xor_[6];
+    u_char perm_[6];
 };
 
 #endif //NOFF_SHARDING_H

@@ -9,12 +9,11 @@ class Hash
 {
 public:
     Hash();
-    int operator()(u_int , u_short , u_int , u_short);
+    u_int get_key(u_int , u_short , u_int , u_short,size_t hash_size);
 
 private:
     void init_hash();
     void getrnd();
-
     u_char xors[12];
     u_char perm[12];
 };
