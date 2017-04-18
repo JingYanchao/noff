@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include <fcntl.h>
 #include <unistd.h>
-void Hash::Hash()
+Hash::Hash()
 {
     init_hash();
 }
@@ -50,7 +50,7 @@ void Hash::init_hash()
     }
 }
 
-int Hash::operator()(u_int src, u_short sport, u_int dst, u_short dport)
+u_int Hash::get_key(u_int src, u_short sport, u_int dst, u_short dport,size_t hash_size)
 {
     u_int res = 0;
     int i;
@@ -62,7 +62,7 @@ int Hash::operator()(u_int src, u_short sport, u_int dst, u_short dport)
     *(u_short *) (data + 10) = dport;
     for (i = 0; i < 12; i++)
         res = ( (res << 8) + (data[perm[i]] ^ xors[i])) % 0xff100f;
-    return res;
+    return res%hash_size;
 }
 
 

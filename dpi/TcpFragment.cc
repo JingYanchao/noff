@@ -11,7 +11,7 @@
 #include <netinet/in.h>
 TcpFragment::TcpFragment()
 {
-    int num_tcp_stream = 1001;
+    int num_tcp_stream = 10001;
     tcpInit(num_tcp_stream);
 }
 
@@ -528,16 +528,16 @@ void TcpFragment::handleAck(struct halfStream *snd, u_int acknum)
 
 void TcpFragment::addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,timeval timeStamp)
 {
-    struct tcpStream *tolink;
-    struct tcpStream *a_tcp;
+    tcpStream *tolink;
+    tcpStream *a_tcp;
     int hash_index;
-    struct tuple4 addr;
+    tuple4 addr;
 
     addr.source = ntohs(this_tcphdr->th_sport);
     addr.dest = ntohs(this_tcphdr->th_dport);
     addr.saddr = this_iphdr->ip_src.s_addr;
     addr.daddr = this_iphdr->ip_dst.s_addr;
-    hash_index = hash(addr.saddr,addr.source,addr.daddr,addr.dest);
+    hash_index = hash.get_key(addr.saddr,addr.source,addr.daddr,addr.dest,tcpStreamTableSize);
 
     if (tcpNum > maxStream)
     {
@@ -554,8 +554,8 @@ void TcpFragment::addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,ti
     a_tcp = freeStreams;
     if (!a_tcp)
     {
-        fprintf(stderr, "gdb me ...\n");
-        pause();
+        LOG_WARN<<"the a_tcp is wrong";
+        return;
     }
     freeStreams = a_tcp->next_free;
 
@@ -588,7 +588,7 @@ void TcpFragment::addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,ti
 
 
 //查询hash表查看是否已经存在tcp流
-tcpStream * TcpFragment::findStream(struct tcphdr *this_tcphdr, struct ip *this_iphdr, int *from_client)
+tcpStream * TcpFragment::findStream(tcphdr *this_tcphdr, ip *this_iphdr, int *from_client)
 {
     tuple4 this_addr, reversed;
     tcpStream *a_tcp;
@@ -616,28 +616,30 @@ tcpStream * TcpFragment::findStream(struct tcphdr *this_tcphdr, struct ip *this_
     return 0;
 }
 
-tcpStream * TcpFragment::nidsFindtcpStream(struct tuple4 *addr)
+tcpStream * TcpFragment::nidsFindtcpStream(tuple4 *addr)
 {
     int hash_index;
     struct tcpStream *a_tcp;
 
-    hash_index = hash(addr->saddr,addr->source,addr->daddr,addr->dest);
+    hash_index = hash.get_key(addr->saddr,addr->source,addr->daddr,addr->dest,tcpStreamTableSize);
     for (a_tcp = tcpStreamTable[hash_index];
          a_tcp && memcmp(&a_tcp->addr, addr, sizeof (struct tuple4));
          a_tcp = a_tcp->next_node);
     return a_tcp ? a_tcp : 0;
 }
 
-void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入数据与其长度
+void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数据与其长度
 {
-    struct ip *this_iphdr = (struct ip *)data;//ip与tcp结构体见后面说明
-    struct tcphdr *this_tcphdr = (struct tcphdr *)(data + 4 * this_iphdr->ip_hl);
+    tcpChecktimeouts(timeStamp);
+    ip *this_iphdr = data;//ip与tcp结构体见后面说明
+
+    tcphdr *this_tcphdr = (struct tcphdr *)(data + 4 * this_iphdr->ip_hl);
     //计算ip部分偏移指到TCP头部
     int datalen, iplen;//数据部分长度，以及ip长度
     int from_client = 1;
     unsigned int tmp_ts;//时间戳
-    struct tcpStream *a_tcp;
-    struct halfStream *snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
+    tcpStream *a_tcp;
+    halfStream *snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
 
     uglyIphdr = this_iphdr;
     iplen = ntohs(this_iphdr->ip_len);
@@ -650,10 +652,9 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
     datalen = iplen - 4 * this_iphdr->ip_hl - 4 * this_tcphdr->th_off;
     //tcp数据部分长度，去掉了TCP的头部
     //ip_hl表示ip头部长度，th_off表示tcp头部长度，datalen表示tcp数据部分长度
-
     if (datalen < 0)
     {
-        LOG_WARN<<"the length of data is less than 0";//指示的长度与实际的不相符，指出错误
+//        LOG_WARN<<"the length of data is less than 0";//指示的长度与实际的不相符，指出错误
         return;
     } //数据部分小于0，发生错误，返回
 
@@ -662,7 +663,6 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
         LOG_WARN<<"the ip address is invalid";//指示的长度与实际的不相符，指出错误
         return;
     }
-
     //经过以上处，初步判断tcp包正常，进行入队操作，插入队列前，先进行此包的状态判断，判断此数据包处于何种状态
     if (!(a_tcp = findStream(this_tcphdr, this_iphdr, &from_client)))
     {
@@ -676,7 +676,6 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
         /*第一次握手完毕返回*/
         return;
     }
-
     if (from_client)
     {
         snd = &a_tcp->client;
@@ -693,9 +692,9 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
                 三次握手的第二次握手
 
 ************************************************************************/
-
     /*tcp 三次握手， SYN ==1，ACK==1,tcp第二次握手(server -> client的同步响应)*/
 //来了一个SYN包
+
     if ((this_tcphdr->th_flags & TH_SYN))
     {
         //syn包是用来建立新连接的，所以，要么来自客户端且没标志（前面处理了），要么来自服务端且加ACK标志
@@ -703,8 +702,10 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
         if (from_client)
         {
             // if timeout since previous
+
             if ((a_tcp->ts + 1800 < timeStamp.tv_sec))
             {
+
                 if (!(this_tcphdr->th_flags & TH_ACK) &&
                     !(this_tcphdr->th_flags & TH_RST))
                 {
@@ -751,6 +752,7 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
         }
         return;
     }
+
     if (
             ! (!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq  )
             &&
@@ -803,16 +805,14 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
                 a_tcp->client.ack_seq = ntohl(this_tcphdr->th_ack);
                 //更新ack序号
                 a_tcp->ts = timeStamp.tv_sec;
+                a_tcp->server.state = TCP_ESTABLISHED;
+                a_tcp->nids_state = NIDS_JUST_EST;
+                LOG_INFO<<"start";
+                for(auto func:tcpconnectionCallback_)
                 {
-                    void *data;
-                    a_tcp->server.state = TCP_ESTABLISHED;
-                    a_tcp->nids_state = NIDS_JUST_EST;
-                    for(auto func:tcpconnectionCallback_)
-                    {
-                        func(a_tcp,timeStamp);
-                    }
-                    a_tcp->nids_state = NIDS_DATA;
+                    func(a_tcp,timeStamp);
                 }
+                a_tcp->nids_state = NIDS_DATA;
             }
             // return;
         }
@@ -826,16 +826,21 @@ void TcpFragment::processTcp(u_char *data, int skblen,timeval timeStamp)//传入
 */
 
 /*数据结束的包的判断*/
+
+
     if ((this_tcphdr->th_flags & TH_ACK))
     {
+        LOG_INFO<<(this_tcphdr->th_flags & TH_ACK);
         handleAck(snd, ntohl(this_tcphdr->th_ack));
         if (rcv->state == FIN_SENT)
             rcv->state = FIN_CONFIRMED;
         if (rcv->state == FIN_CONFIRMED && snd->state == FIN_CONFIRMED)
         {
             a_tcp->nids_state = NIDS_CLOSE;
+            LOG_INFO<<"close";
             for (auto func:tcpcloseCallbacks_)
             {
+
                 func(a_tcp,timeStamp);
             }
             nidsFreetcpstream(a_tcp);
