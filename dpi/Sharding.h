@@ -6,13 +6,17 @@
 #define NOFF_SHARDING_H
 
 #include <netinet/ip.h>
+#include <netinet/tcp.h>
+
+#include "Util.h"
 
 class Sharding {
 
 public:
     Sharding();
 
-    u_int operator()(const ip* hdr, int len);
+    u_int operator()(const ip* hdr, int len)const;
+    u_int operator()(tuple4 t) const;
 
 private:
     void initRandom();

@@ -19,15 +19,7 @@
 namespace
 {
 
-struct Tuple4
-{
-    u_int       srcIP;
-    u_int       dstIP;
-    u_int16_t   srcPort;
-    u_int16_t   dstPort;
-};
-
-Tuple4 getTuple4(const ip* hdr, int len)
+tuple4 getTuple4(const ip* hdr, int len)
 {
     u_int16_t   srcPort, dstPort;
     u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
@@ -75,14 +67,13 @@ Tuple4 getTuple4(const ip* hdr, int len)
         }
     }
 
-    return { hdr->ip_src.s_addr,
-             hdr->ip_dst.s_addr,
-             srcPort,
-             dstPort };
+    return {(u_short)srcPort,
+            (u_short)dstPort,
+            hdr->ip_src.s_addr,
+            hdr->ip_dst.s_addr};
 }
 
 }
-
 
 Sharding::Sharding()
 {
@@ -101,17 +92,20 @@ Sharding::Sharding()
     }
 }
 
-u_int Sharding::operator()(const ip* hdr, int len)
+u_int Sharding::operator()(const ip* hdr, int len) const
+{
+    tuple4 t = getTuple4(hdr, len);
+
+    return (*this)(t);
+}
+
+u_int Sharding::operator()(tuple4 t) const
 {
     u_int   res = 0;
     u_char  data[6];
 
-    Tuple4 t = getTuple4(hdr, len);;
-
-
-
-    u_int flag1 = t.dstIP^t.srcIP;
-    u_short flag2 = t.dstPort^t.srcPort;
+    u_int flag1 = t.daddr^t.saddr;
+    u_short flag2 = t.dest^t.source;
     memmove(data, &flag1, 4);
     memmove(data+4,&flag2,2);
     for (int i = 0; i < 6; i++)
