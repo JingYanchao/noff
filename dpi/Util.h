@@ -12,6 +12,20 @@ struct tuple4
     u_short dest;
     u_int saddr;
     u_int daddr;
+
+    tuple4(u_short srcPort, u_short dstPort, u_int srcIP, u_int dstIP):
+        source(srcPort), dest(dstPort), saddr(srcIP), daddr(dstIP)
+    {}
+
+    tuple4(){}
+
+    bool operator == (const tuple4 rhs)const
+    {
+        return source == rhs.source &&
+               dest == rhs.dest &&
+               saddr == rhs.saddr &&
+               daddr == rhs.daddr;
+    }
 };
 
 inline int before(u_int seq1, u_int seq2)
