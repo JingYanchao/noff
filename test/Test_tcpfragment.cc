@@ -14,7 +14,7 @@
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
-const int NUM_THREAD = 12;
+const int NUM_THREAD = 1;
 class protocol
 {
 public:
@@ -44,7 +44,7 @@ private:
     muduo::AtomicInt32 icmp_num;
 
 };
-Capture cap("eno2", 65536, true, 1000);
+Capture cap("eth0", 65536, true, 1000);
 protocol ptc;
 void sigHandler(int)
 {

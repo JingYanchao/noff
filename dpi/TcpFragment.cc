@@ -11,7 +11,8 @@
 #include <netinet/in.h>
 TcpFragment::TcpFragment()
 {
-    int num_tcp_stream = 10001;
+    LOG_INFO<<"start tcpfragment";
+    int num_tcp_stream = 30001;
     tcpInit(num_tcp_stream);
 }
 
@@ -40,7 +41,7 @@ int TcpFragment::tcpInit(int size)
     maxStream = 3 * tcpStreamTableSize / 4;
 
     //先将max_stream个tcp会话结构体申请好，放着（避免后面陆陆续续申请浪费时间）。
-    streamsPool = (struct tcpStream *) malloc((maxStream + 1) * sizeof(struct tcpStream));
+    streamsPool = (tcpStream *) malloc((maxStream + 1) * sizeof(tcpStream));
     if (!streamsPool)
     {
         LOG_ERROR<<"the memory of streamsPool is invalid";
@@ -200,7 +201,7 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
         //如果时间到达的话,就将tcp的数据上传
         to->a_tcp->nids_state = NIDS_TIMED_OUT;
         //进行回调
-        for(auto func:tcptimeoutCallback_)
+        for(auto& func:tcptimeoutCallback_)
         {
             func(to->a_tcp,timeStamp);
         }
@@ -249,6 +250,7 @@ void TcpFragment::addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
                              u_char *data, int datalen,
                              u_int this_seq, char fin, char urg, u_int urg_ptr,timeval timeStamp)
 {
+
     u_int lost = EXP_SEQ - this_seq;
     int to_copy, to_copy2;
 
@@ -264,16 +266,8 @@ void TcpFragment::addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
         to_copy = rcv->urg_ptr - (this_seq + lost);
         if (to_copy > 0)
         {
-            if (rcv->collect)
-            {
-                add2buf(rcv, (char *)(data + lost), to_copy);
-                notify(a_tcp, rcv,timeStamp);
-            }
-            else
-            {
-                rcv->count += to_copy;
-                rcv->offset = rcv->count; /* clear the buffer */
-            }
+            add2buf(rcv, (char *)(data + lost), to_copy);
+            notify(a_tcp, rcv,timeStamp);
         }
         rcv->urgdata = data[rcv->urg_ptr - this_seq];
         rcv->count_new_urg = 1;
@@ -284,31 +278,16 @@ void TcpFragment::addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
         to_copy2 = this_seq + datalen - rcv->urg_ptr - 1;
         if (to_copy2 > 0)
         {
-            if (rcv->collect)
-            {
-                add2buf(rcv, (char *)(data + lost + to_copy + 1), to_copy2);
-                notify(a_tcp, rcv,timeStamp);
-            }
-            else
-            {
-                rcv->count += to_copy2;
-                rcv->offset = rcv->count; /* clear the buffer */
-            }
+            add2buf(rcv, (char *)(data + lost + to_copy + 1), to_copy2);
+            notify(a_tcp, rcv,timeStamp);
         }
     }
     else
     {
         if (datalen - lost > 0)
         {
-            if (rcv->collect)
-            {
-                add2buf(rcv, (char *)(data + lost), datalen - lost);
-            }
-            else
-            {
-                rcv->count += datalen - lost;
-                rcv->offset = rcv->count; /* clear the buffer */
-            }
+            add2buf(rcv, (char *)(data + lost), datalen - lost);
+            notify(a_tcp, rcv,timeStamp);
         }
     }
     if (fin)
@@ -555,7 +534,7 @@ void TcpFragment::addNewtcp(struct tcphdr *this_tcphdr, struct ip *this_iphdr,ti
     if (!a_tcp)
     {
         LOG_WARN<<"the a_tcp is wrong";
-        return;
+        pause();
     }
     freeStreams = a_tcp->next_free;
 
@@ -633,7 +612,7 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
     tcpChecktimeouts(timeStamp);
     ip *this_iphdr = data;//ip与tcp结构体见后面说明
 
-    tcphdr *this_tcphdr = (struct tcphdr *)(data + 4 * this_iphdr->ip_hl);
+    tcphdr *this_tcphdr = (struct tcphdr *)((u_char*)data + 4 * this_iphdr->ip_hl);
     //计算ip部分偏移指到TCP头部
     int datalen, iplen;//数据部分长度，以及ip长度
     int from_client = 1;
@@ -767,7 +746,7 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
         if (a_tcp->nids_state == NIDS_DATA)
         {
             a_tcp->nids_state = NIDS_RESET;
-            for(auto func:tcprstCallback_)
+            for(auto& func:tcprstCallback_)
             {
                 func(a_tcp,timeStamp);
             }
@@ -797,6 +776,7 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
         if (from_client && a_tcp->client.state == TCP_SYN_SENT &&
             a_tcp->server.state == TCP_SYN_RECV)
         {
+
             //在此情况下，流水号又对得上，好的，这个包是第三次握手包，连接建立成功
             if (ntohl(this_tcphdr->th_ack) == a_tcp->server.seq)
             {
@@ -807,8 +787,8 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
                 a_tcp->ts = timeStamp.tv_sec;
                 a_tcp->server.state = TCP_ESTABLISHED;
                 a_tcp->nids_state = NIDS_JUST_EST;
-                LOG_INFO<<"start";
-                for(auto func:tcpconnectionCallback_)
+                LOG_INFO<<"start2";
+                for(auto& func:tcpconnectionCallback_)
                 {
                     func(a_tcp,timeStamp);
                 }
@@ -830,7 +810,6 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
 
     if ((this_tcphdr->th_flags & TH_ACK))
     {
-        LOG_INFO<<(this_tcphdr->th_flags & TH_ACK);
         handleAck(snd, ntohl(this_tcphdr->th_ack));
         if (rcv->state == FIN_SENT)
             rcv->state = FIN_CONFIRMED;
@@ -838,9 +817,8 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
         {
             a_tcp->nids_state = NIDS_CLOSE;
             LOG_INFO<<"close";
-            for (auto func:tcpcloseCallbacks_)
+            for (auto& func:tcpcloseCallbacks_)
             {
-
                 func(a_tcp,timeStamp);
             }
             nidsFreetcpstream(a_tcp);
@@ -860,39 +838,36 @@ void TcpFragment::notify(struct tcpStream * a_tcp, struct halfStream * rcv,timev
 {
     struct lurker_node *i, **prev_addr;
     char mask;
-
+    LOG_INFO<<"notify";
     if (rcv->count_new_urg)
     {
-        for(auto func:tcpdataCallback_)
+        for(auto& func:tcpdataCallback_)
         {
             func(a_tcp,timeStamp);
         }
         goto prune_listeners;
     }
 
-    if (rcv->collect)
+    do
     {
-        do
+        int total;
+        a_tcp->read = rcv->count - rcv->offset;
+        total=a_tcp->read;
+        for(auto& func:tcpdataCallback_)
         {
-            int total;
-            a_tcp->read = rcv->count - rcv->offset;
-            total=a_tcp->read;
-            for(auto func:tcpdataCallback_)
-            {
-                func(a_tcp,timeStamp);
-            }
-            if (a_tcp->read>total-rcv->count_new)
-                rcv->count_new=total-a_tcp->read;
+            func(a_tcp,timeStamp);
+        }
+        if (a_tcp->read>total-rcv->count_new)
+            rcv->count_new=total-a_tcp->read;
 
-            if (a_tcp->read > 0)
-            {
-                memmove(rcv->data, rcv->data + a_tcp->read, rcv->count - rcv->offset - a_tcp->read);
-                rcv->offset += a_tcp->read;
-            }
-        }while (a_tcp->read>0 && rcv->count_new);
+        if (a_tcp->read > 0)
+        {
+            memmove(rcv->data, rcv->data + a_tcp->read, rcv->count - rcv->offset - a_tcp->read);
+            rcv->offset += a_tcp->read;
+        }
+    }while (a_tcp->read>0 && rcv->count_new);
 // we know that if one_loop_less!=0, we have only one callback to notify
-        rcv->count_new=0;
-    }
+    rcv->count_new=0;
     prune_listeners:
     return;
 }
