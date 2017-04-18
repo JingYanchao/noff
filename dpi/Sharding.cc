@@ -18,7 +18,7 @@
 namespace
 {
 
-Sharding::Tuple4 getTuple4(const ip* hdr, int len)
+tuple4 getTuple4(const ip* hdr, int len)
 {
     u_int16_t   srcPort, dstPort;
     u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;
@@ -66,10 +66,10 @@ Sharding::Tuple4 getTuple4(const ip* hdr, int len)
         }
     }
 
-    return { hdr->ip_src.s_addr,
-             hdr->ip_dst.s_addr,
-             srcPort,
-             dstPort };
+    return {(u_short)srcPort,
+            (u_short)dstPort,
+            hdr->ip_src.s_addr,
+            hdr->ip_dst.s_addr};
 }
 
 }
@@ -91,24 +91,24 @@ Sharding::Sharding()
     }
 }
 
-u_int Sharding::operator()(const ip* hdr, int len)
+u_int Sharding::operator()(const ip* hdr, int len) const
 {
-    Tuple4 t = getTuple4(hdr, len);
+    tuple4 t = getTuple4(hdr, len);
 
-    return (*this)(t, len);
+    return (*this)(t);
 }
 
-u_int Sharding::operator()(Sharding::Tuple4 t, int len)
+u_int Sharding::operator()(tuple4 t) const
 {
     u_int   res = 0;
     u_char  data[12];
 
     u_int *stupid_strict_aliasing_warnings=(u_int*)data;
-    *stupid_strict_aliasing_warnings = t.srcIP;
+    *stupid_strict_aliasing_warnings = t.saddr;
 
-    *(u_int *) (data + 4) = t.dstIP;
-    *(u_int16_t *) (data + 8) = t.srcPort;
-    *(u_int16_t *) (data + 10) = t.dstPort;
+    *(u_int *) (data + 4) = t.daddr;
+    *(u_int16_t *) (data + 8) = t.source;
+    *(u_int16_t *) (data + 10) = t.dest;
 
     for (int i = 0; i < 12; i++)
         res = ( (res << 8) + (data[perm_[i]] ^ xor_[i])) % 0xff100f;

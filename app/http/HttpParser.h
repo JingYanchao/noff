@@ -64,7 +64,7 @@ typedef unsigned __int64 uint64_t;
 # define HTTP_MAX_HEADER_SIZE (80*1024)
 #endif
 
-typedef struct http_parser http_parser;
+typedef struct HttpParser http_parser;
 typedef struct http_parser_settings http_parser_settings;
 
 
@@ -86,8 +86,8 @@ typedef struct http_parser_settings http_parser_settings;
  * many times for each string. E.G. you might get 10 callbacks for "on_url"
  * each providing just a few characters more data.
  */
-typedef int (*http_data_cb) (http_parser*, const char *at, size_t length);
-typedef int (*http_cb) (http_parser*);
+typedef int (*http_data_cb) (HttpParser*, const char *at, size_t length);
+typedef int (*http_cb) (HttpParser*);
 
 
 /* Status Codes */
@@ -214,7 +214,7 @@ enum http_method
 enum http_parser_type { HTTP_REQUEST, HTTP_RESPONSE, HTTP_BOTH };
 
 
-/* Flag values for http_parser.flags field */
+/* Flag values for HttpParser.flags field */
 enum flags
   { F_CHUNKED               = 1 << 0
   , F_CONNECTION_KEEP_ALIVE = 1 << 1
@@ -285,16 +285,16 @@ enum http_errno {
 #undef HTTP_ERRNO_GEN
 
 
-/* Get an http_errno value from an http_parser */
+/* Get an http_errno value from an HttpParser */
 #define HTTP_PARSER_ERRNO(p)            ((enum http_errno) (p)->http_errno)
 
 
-struct http_parser {
+struct HttpParser {
   /** PRIVATE **/
   unsigned int type : 2;         /* enum http_parser_type */
   unsigned int flags : 8;        /* F_* values from 'flags' enum; semi-public */
-  unsigned int state : 7;        /* enum state from http_parser.c */
-  unsigned int header_state : 7; /* enum header_state from http_parser.c */
+  unsigned int state : 7;        /* enum state from HttpParser.c */
+  unsigned int header_state : 7; /* enum header_state from HttpParser.c */
   unsigned int index : 7;        /* index into current matcher */
   unsigned int lenient_http_headers : 1;
 
@@ -375,11 +375,11 @@ struct http_parser_url {
  *   unsigned major = (version >> 16) & 255;
  *   unsigned minor = (version >> 8) & 255;
  *   unsigned patch = version & 255;
- *   printf("http_parser v%u.%u.%u\n", major, minor, patch);
+ *   printf("HttpParser v%u.%u.%u\n", major, minor, patch);
  */
 unsigned long http_parser_version(void);
 
-void http_parser_init(http_parser *parser, enum http_parser_type type);
+void http_parser_init(HttpParser *parser, enum http_parser_type type);
 
 
 /* Initialize http_parser_settings members to 0
@@ -389,7 +389,7 @@ void http_parser_settings_init(http_parser_settings *settings);
 
 /* Executes the parser. Returns number of parsed bytes. Sets
  * `parser->http_errno` on error. */
-size_t http_parser_execute(http_parser *parser,
+size_t http_parser_execute(HttpParser *parser,
                            const http_parser_settings *settings,
                            const char *data,
                            size_t len);
@@ -401,7 +401,7 @@ size_t http_parser_execute(http_parser *parser,
  * If you are the server, respond with the "Connection: close" header.
  * If you are the client, close the connection.
  */
-int http_should_keep_alive(const http_parser *parser);
+int http_should_keep_alive(const HttpParser *parser);
 
 /* Returns a string version of the HTTP method. */
 const char *http_method_str(enum http_method m);
@@ -421,10 +421,10 @@ int http_parser_parse_url(const char *buf, size_t buflen,
                           struct http_parser_url *u);
 
 /* Pause or un-pause the parser; a nonzero value pauses */
-void http_parser_pause(http_parser *parser, int paused);
+void http_parser_pause(HttpParser *parser, int paused);
 
 /* Checks if this is the final chunk of the body. */
-int http_body_is_final(const http_parser *parser);
+int http_body_is_final(const HttpParser *parser);
 
 #ifdef __cplusplus
 }

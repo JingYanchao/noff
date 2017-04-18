@@ -55,14 +55,6 @@ struct tcpTimeout
     struct tcpTimeout *prev;
 };
 
-struct tuple4
-{
-    u_short source;
-    u_short dest;
-    u_int saddr;
-    u_int daddr;
-};
-
 struct halfStream
 {
     char state;

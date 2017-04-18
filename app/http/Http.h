@@ -11,10 +11,10 @@
 
 #include "../../dpi/Sharding.h"
 #include "../../dpi/TcpFragment.h"
-#include "../../dpi/util.h"
+#include "dpi/Util.h"
 #include "../../dpi/Sharding.h"
 
-#include "http_parser.h"
+#include "HttpParser.h"
 
 #ifndef NOFF_HTTP_H
 #define NOFF_HTTP_H
@@ -83,8 +83,8 @@ private:
     {
         HttpRequest     requestData;
         HttpResponse    responseData;
-        http_parser     requestParser;
-        http_parser     responseParser;
+        HttpParser     requestParser;
+        HttpParser     responseParser;
 
         HttpDetail(tuple4 t4, timeval timpStamp, Http *h):
                 requestData(t4, timpStamp),
@@ -115,11 +115,11 @@ private:
     HttpRequest     *currentHttpRequest;
     HttpResponse    *currentHttpResponse;
 
-    static int onHeaderFiled(http_parser *parser, const char *data, size_t len);
-    static int onHeaderValue(http_parser *parser, const char *data, size_t len);
-    static int onUrl(http_parser *parser, const char *data, size_t len);
-    static int onStatus(http_parser *parser, const char *data, size_t len);
-    static int onHeadersComplete(http_parser *parser);
+    static int onHeaderFiled(HttpParser *parser, const char *data, size_t len);
+    static int onHeaderValue(HttpParser *parser, const char *data, size_t len);
+    static int onUrl(HttpParser *parser, const char *data, size_t len);
+    static int onStatus(HttpParser *parser, const char *data, size_t len);
+    static int onHeadersComplete(HttpParser *parser);
 
     static http_parser_settings settings;
 };

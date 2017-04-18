@@ -8,21 +8,15 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 
+#include "Util.h"
+
 class Sharding {
 
 public:
     Sharding();
 
-    u_int operator()(const ip* hdr, int len);
-    u_int operator()(Tuple4 t, int len);
-
-    struct Tuple4
-    {
-        u_int       srcIP;
-        u_int       dstIP;
-        u_int16_t   srcPort;
-        u_int16_t   dstPort;
-    };
+    u_int operator()(const ip* hdr, int len)const;
+    u_int operator()(tuple4 t) const;
 
 private:
     void initRandom();

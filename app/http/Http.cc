@@ -6,7 +6,7 @@
 
 #include "Http.h"
 
-int Http::onHeaderFiled(http_parser *parser, const char *data, size_t len)
+int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
 {
     Http *http = (Http*)parser->data;
 
@@ -33,7 +33,7 @@ int Http::onHeaderFiled(http_parser *parser, const char *data, size_t len)
     return 0;
 }
 
-int Http::onHeaderValue(http_parser *parser, const char *data, size_t len)
+int Http::onHeaderValue(HttpParser *parser, const char *data, size_t len)
 {
     Http *http = (Http*)parser->data;
 
@@ -68,7 +68,7 @@ int Http::onHeaderValue(http_parser *parser, const char *data, size_t len)
     return 0;
 }
 
-int Http::onUrl(http_parser *parser, const char *data, size_t len)
+int Http::onUrl(HttpParser *parser, const char *data, size_t len)
 {
     Http *http = (Http*)parser->data;
     HttpRequest *request = http->currentHttpRequest;
@@ -80,7 +80,7 @@ int Http::onUrl(http_parser *parser, const char *data, size_t len)
     return 0;
 }
 
-int Http::onStatus(http_parser *parser, const char *data, size_t len)
+int Http::onStatus(HttpParser *parser, const char *data, size_t len)
 {
     Http *http = (Http*)parser->data;
     HttpResponse *response = http->currentHttpResponse;
@@ -92,7 +92,7 @@ int Http::onStatus(http_parser *parser, const char *data, size_t len)
     return 0;
 }
 
-int Http::onHeadersComplete(http_parser *parser)
+int Http::onHeadersComplete(HttpParser *parser)
 {
     Http *http = (Http*)parser->data;
 
@@ -177,7 +177,7 @@ void Http::onTcpData(tcpStream *stream, timeval timeStamp)
     // parser request
     if (char *data = stream->server.data) {
 
-        http_parser *parser = &detail.requestParser;
+        HttpParser *parser = &detail.requestParser;
 
         http_parser_execute(
                 parser,
@@ -195,7 +195,7 @@ void Http::onTcpData(tcpStream *stream, timeval timeStamp)
     // parser response
     if (char *data = stream->client.data) {
 
-        http_parser *parser = &detail.responseParser;
+        HttpParser *parser = &detail.responseParser;
 
         http_parser_execute(
                 &detail.responseParser,
