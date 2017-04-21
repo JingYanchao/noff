@@ -91,9 +91,9 @@ struct ipq
 class IpFragment:muduo::noncopyable
 {
 public:
-    typedef std::function<void(ip*,int,timeval)>         IpCallback;
-    typedef std::function<void(ip*,int,timeval)>     TcpCallback;
-    typedef std::function<void(ip*, int,timeval)>    UdpCallback;
+    typedef std::function<void(ip*,int,timeval)>    IpCallback;
+    typedef std::function<void(ip*,int,timeval)>    TcpCallback;
+    typedef std::function<void(ip*, int,timeval)>   UdpCallback;
     typedef std::function<void(ip*,int,timeval)>    IcmpCallback;
     IpFragment();
     IpFragment(size_t n);

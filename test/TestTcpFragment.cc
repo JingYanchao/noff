@@ -1,19 +1,17 @@
 //
-// Created by jyc on 17-4-17.
+// Created by jyc on 17-4-18.
 //
-//
-// Created by jyc on 17-4-16.
-//
-#include "../dpi/Capture.h"
-#include "../dpi/Dispatcher.h"
-#include "../dpi/IpFragment.h"
-#include "../dpi/TcpFragment.h"
-#include "Test_tcpfragment.h"
+#include "Capture.h"
+#include "Dispatcher.h"
+#include "IpFragment.h"
+#include "TcpFragment.h"
+#include "TestTcpFragment.h"
 
 #include <signal.h>
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
+
 const int NUM_THREAD = 1;
 class protocol
 {
@@ -44,7 +42,9 @@ private:
     muduo::AtomicInt32 icmp_num;
 
 };
-Capture cap("eth0", 65536, true, 1000);
+Capture cap("eno2",65536,true,1000);
+//Capture cap("test.pcap");
+
 protocol ptc;
 void sigHandler(int)
 {
@@ -58,7 +58,7 @@ int main()
 
     signal(SIGINT, sigHandler);
 
-    cap.setFilter("ip");
+//    cap.setFilter("ip");
 
     // customized function, count IP fragments
     IpFragment frag[NUM_THREAD];
@@ -81,18 +81,13 @@ int main()
         frag[i].addTcpCallback(std::bind(&TcpFragment::processTcp,&tcpFrag[i],std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
         frag[i].addUdpCallback(std::bind(&protocol::udp_output,&ptc,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
         frag[i].addIcmpCallback(std::bind(&protocol::icmp_output,&ptc,std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
-        callbacks.push_back(std::bind(&IpFragment::startIpfragProc, &frag[i], std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
+        cap.addIpFragmentCallback(std::bind(&IpFragment::startIpfragProc, &frag[i], std::placeholders::_1,std::placeholders::_2,std::placeholders::_3));
     }
 
     // if queue is full, Dispatcher will warn
     // Dispatcher dis(callbacks, 2);
-    Dispatcher dispatcher(callbacks, 65536);
 
     // connect Capture and Dispatcher
-    cap.addIpFragmentCallback(std::bind(
-            &Dispatcher::onIpFragment, &dispatcher,std::placeholders:: _1, std::placeholders::_2,std::placeholders::_3));
 
     cap.startLoop(0);
 }
-
-
