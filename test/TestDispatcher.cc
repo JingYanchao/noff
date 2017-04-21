@@ -2,13 +2,13 @@
 // Created by root on 17-4-13.
 //
 
+#include "../dpi/Capture.h"
+#include "../dpi/Dispatcher.h"
+
 #include <signal.h>
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
-
-#include "../dpi/Capture.h"
-#include "../dpi/Dispatcher.h"
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -18,7 +18,7 @@ class IpFragmentCounter {
 
 public:
     // Dispatcher callbacks must be thread safe !!!
-    void onIpFragment(const ip *hdr, int len, timeval timeStamp)
+    void onIpFragment(ip *hdr, int len, timeval timeStamp)
     {
         counter_.add(1);
         // do NOT manually free(hdr),
@@ -33,7 +33,7 @@ private:
     muduo::AtomicInt32 counter_;
 };
 
-Capture cap("enp3s0", 65536, true, 1000);
+Capture cap("wlo1", 65536, true, 1000);
 
 void sigHandler(int)
 {
@@ -60,7 +60,7 @@ int main()
 
     // if queue is full, Dispatcher will warn
     // Dispatcher dis(callbacks, 2);
-    Dispatcher dispatcher(callbacks, false, 1024);
+    Dispatcher dispatcher(callbacks, 1024);
 
     // connect Capture and Dispatcher
     cap.addIpFragmentCallback(std::bind(
