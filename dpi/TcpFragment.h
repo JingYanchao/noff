@@ -6,7 +6,7 @@
 #define NOFF_TCPFRAGMENT_H
 
 #include "Hash.h"
-#include "util.h"
+#include "Util.h"
 #include <stdlib.h>
 #include <functional>
 #include <vector>

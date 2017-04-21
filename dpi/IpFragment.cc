@@ -1,5 +1,3 @@
-
-
 //
 // Created by jyc on 17-4-14.
 //
@@ -55,9 +53,8 @@ int IpFragment::jiffies()
     return timenow;
 }
 
-void IpFragment::startIpfragProc(ip *data, int len,timeval timeStamp)
+void IpFragment::startIpfragProc(ip *data, int len, timeval timeStamp)
 {
-    struct proc_node *i;
     struct ip *iph = data;
     int need_free = 0;
     int skblen;

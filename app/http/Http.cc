@@ -211,12 +211,15 @@ void Http::onTcpData(tcpStream *stream, timeval timeStamp)
     }
 }
 
-void Http::onTcpClose(tcpStream *stream, timeval)
+void Http::onTcpClose(tcpStream *stream, timeval timeStamp)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
     }
+
+    // may have data
+    onTcpData(stream, timeStamp);
 
     if (table.erase(t4) != 1) {
         LOG_FATAL << "HTTP: TCP close without connection";

@@ -4,7 +4,7 @@
 //
 // Created by jyc on 17-4-16.
 //
-#include "../dpi/Capture.h"
+#include "dpi/Capture.h"
 #include "../dpi/Dispatcher.h"
 #include "../dpi/IpFragment.h"
 #include "../dpi/TcpFragment.h"
@@ -14,7 +14,9 @@
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
-const int NUM_THREAD = 12;
+
+const int NUM_THREAD = 1;
+
 class protocol
 {
 public:
@@ -37,14 +39,13 @@ public:
         LOG_INFO<<"tcp:"<<tcp_num.get()<<" "<<"udp:"<<udp_num.get()<<" "<<"icmp:"<<icmp_num.get();
     }
 
-
 private:
     muduo::AtomicInt32 tcp_num;
     muduo::AtomicInt32 udp_num;
     muduo::AtomicInt32 icmp_num;
 
 };
-Capture cap("eno2", 65536, true, 1000);
+Capture cap("any", 65600, true, 1000);
 protocol ptc;
 void sigHandler(int)
 {
@@ -54,7 +55,7 @@ void sigHandler(int)
 
 int main()
 {
-    muduo::Logger::setLogLevel(muduo::Logger::INFO);
+    muduo::Logger::setLogLevel(muduo::Logger::TRACE);
 
     signal(SIGINT, sigHandler);
 

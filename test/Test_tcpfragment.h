@@ -10,42 +10,43 @@
 
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Logging.h>
+
 void tcpConnection(tcpStream* tcp_connection,timeval timeStamp)
 {
-    LOG_INFO<<"connect";
+    LOG_TRACE<<"connect";
     if(tcp_connection->addr.dest==80 )
     {
-        LOG_INFO<<"the tcp state is: "<<tcp_connection->nids_state;
+        LOG_TRACE<<"the tcp state is: "<<tcp_connection->nids_state;
         return ;
     }
 }
 
 void tcpData(tcpStream* tcp_connection,timeval timeStamp)
 {
-    LOG_INFO<<"data";
+    LOG_TRACE<<"data";
     if(tcp_connection->addr.dest==80 )
     {
-        LOG_INFO<<"the tcp state is: "<<tcp_connection->nids_state;
+        LOG_TRACE<<"the tcp state is: "<<tcp_connection->nids_state;
         return ;
     }
 }
 
 void tcpClose(tcpStream* tcp_connection,timeval timeStamp)
 {
-    LOG_INFO<<"close";
+    LOG_TRACE<<"close";
     if(tcp_connection->addr.dest==80 )
     {
-        LOG_INFO<<"the tcp state is: "<<tcp_connection->nids_state;
+        LOG_TRACE<<"the tcp state is: "<<tcp_connection->nids_state;
         return ;
     }
 }
 
 void tcpRst(tcpStream* tcp_connection,timeval timeStamp)
 {
-    LOG_INFO<<"rst";
+    LOG_TRACE<<"rst";
     if(tcp_connection->addr.dest==80 )
     {
-        LOG_INFO<<"the tcp state is: "<<tcp_connection->nids_state;
+        LOG_TRACE<<"the tcp state is: "<<tcp_connection->nids_state;
         return ;
     }
 }
@@ -55,7 +56,7 @@ void tcpTimeOut(tcpStream* tcp_connection,timeval timeStamp)
     LOG_INFO<<"timeout";
     if(tcp_connection->addr.dest==80 )
     {
-        LOG_INFO<<"the tcp state is:"<<tcp_connection->nids_state;
+        LOG_TRACE<<"the tcp state is:"<<tcp_connection->nids_state;
         return ;
     }
 }
