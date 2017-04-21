@@ -3,7 +3,7 @@
 //
 
 #include <muduo/base/Logging.h>
-
+#include "TcpFragment.h"
 #include "Http.h"
 
 int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
@@ -143,7 +143,7 @@ http_parser_settings Http::settings = {
         NULL,               // on_chunk_complete;
 };
 
-void Http::onTcpConnection(tcpStream *stream, timeval timeStamp)
+void Http::onTcpConnection(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -158,7 +158,7 @@ void Http::onTcpConnection(tcpStream *stream, timeval timeStamp)
     table.insert({t4, std::move(detail)});
 }
 
-void Http::onTcpData(tcpStream *stream, timeval timeStamp)
+void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -211,7 +211,7 @@ void Http::onTcpData(tcpStream *stream, timeval timeStamp)
     }
 }
 
-void Http::onTcpClose(tcpStream *stream, timeval timeStamp)
+void Http::onTcpClose(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -226,7 +226,7 @@ void Http::onTcpClose(tcpStream *stream, timeval timeStamp)
     }
 }
 
-void Http::onTcpRst(tcpStream *stream, timeval)
+void Http::onTcpRst(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -238,7 +238,7 @@ void Http::onTcpRst(tcpStream *stream, timeval)
     }
 }
 
-void Http::onTcpTimeout(tcpStream *stream, timeval)
+void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {

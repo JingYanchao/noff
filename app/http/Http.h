@@ -60,11 +60,11 @@ public:
     typedef std::function<void(const HttpRequest*)> HttpRequestCallback;
     typedef std::function<void(const HttpResponse*)> HttpResponseCallback;
 
-    void onTcpConnection(tcpStream*, timeval);
-    void onTcpData(tcpStream*, timeval);
-    void onTcpClose(tcpStream*, timeval);
-    void onTcpRst(tcpStream*, timeval);
-    void onTcpTimeout(tcpStream*, timeval);
+    void onTcpConnection(TcpStream*, timeval, u_char*, int, int );
+    void onTcpData(TcpStream*, timeval, u_char*, int, int );
+    void onTcpClose(TcpStream*, timeval, u_char*, int, int );
+    void onTcpRst(TcpStream*, timeval, u_char*, int, int );
+    void onTcpTimeout(TcpStream*, timeval, u_char*, int, int );
 
     void addHttpRequestCallback(const HttpRequestCallback& cb)
     {

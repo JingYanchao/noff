@@ -90,7 +90,7 @@ class TcpFragment
 {
 public:
     typedef std::function<void(TcpStream*,timeval)> TcpCallback;
-    typedef std::function<void(TcpStream*,timeval,u_char*,int)> DataCallback;
+    typedef std::function<void(TcpStream*,timeval,u_char*,int,int)> DataCallback;
 
 
     void addTcpcloseCallback(const TcpCallback& cb)
