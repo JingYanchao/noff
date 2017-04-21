@@ -185,7 +185,6 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
         return;
     }
 
-
     if (!(!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq ) //不是流水号正确且没数据的包
         &&//而且这个包不再当前窗口之内
             (!before(ntohl(this_tcphdr->th_seq), rcv->ack_seq + rcv->window*rcv->wscale) ||

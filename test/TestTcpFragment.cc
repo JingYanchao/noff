@@ -44,6 +44,7 @@ private:
 };
 Capture cap("eno2",65536,true,1000);
 //Capture cap("test.pcap");
+
 protocol ptc;
 void sigHandler(int)
 {
