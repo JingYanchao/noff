@@ -16,10 +16,11 @@ class Capture: muduo::noncopyable {
 
 public:
     typedef std::function<void(const pcap_pkthdr*, const u_char*, timeval)> PacketCallback;
-    typedef std::function<void(const ip*, int, timeval)> IpFragmentCallback;
+    typedef std::function<void(ip*, int, timeval)> IpFragmentCallback;
 
     explicit
     Capture(const char *deviceName, int snaplen, bool promisc, int msTimeout);
+    explicit
     Capture(const char *fileName);
     ~Capture();
 
