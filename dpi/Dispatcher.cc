@@ -21,21 +21,12 @@ Sharding shard;
 };
 
 
-Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb,
-                       bool multiThread, u_int queueSize)
-    :callbacks_(cb),
-     taskCounter_(cb.size()),
-     multiThread_(multiThread)
+Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSize)
+    :nWorkers_((u_int)cb.size()),
+     queueSize_(queueSize),
+     callbacks_(cb),
+     taskCounter_(nWorkers_)
 {
-    if (multiThread_) {
-        nWorkers_ = (u_int)cb.size();
-        queueSize_ = queueSize;
-    }
-    else {
-        nWorkers_ = 0;
-        queueSize_ = 0;
-    }
-
     workers_.reserve(nWorkers_);
     for (size_t i = 0; i < nWorkers_; ++i)
     {
@@ -45,13 +36,7 @@ Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb,
         workers_[i]->setMaxQueueSize(queueSize_);
         workers_[i]->start(1);
     }
-
-    if (multiThread_) {
-        LOG_INFO << "Dispatcher: started, " << nWorkers_ << " workers";
-    }
-    else {
-        LOG_INFO << "Dispatcher: started, single thread";
-    }
+    LOG_INFO << "Dispatcher: started, " << nWorkers_ << " workers";
 }
 
 Dispatcher::~Dispatcher()
@@ -72,11 +57,6 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
         return;
     }
 
-    if (!multiThread_) {
-        singleThreadCallback(hdr, len, timeStamp);
-        return;;
-    }
-
     u_int index;
 
     try {
@@ -95,7 +75,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
     auto& worker = *workers_[index];
     auto& callback = callbacks_[index];
 
-    if (worker.queueSize() >= queueSize_ - 2) {
+    if (worker.queueSize() >= queueSize_ - 10) {
         LOG_WARN << "Dispatcher: " << worker.name() << " overloaded";
         return;
     }
@@ -117,11 +97,4 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
     worker.run([=]() {
         free(copiedIpFragment);
     });
-}
-
-void Dispatcher::singleThreadCallback(const ip *hdr, int len, timeval timeStamp)
-{
-    for (auto& func : callbacks_) {
-        func(hdr, len, timeStamp);
-    }
 }
