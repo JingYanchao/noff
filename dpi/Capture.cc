@@ -13,17 +13,12 @@ using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
 
-Capture::Capture(const char *device, int snaplen, bool promisc, int msTimeout)
-        :pcap_(NULL),
-         device_(device),
-         filter_(),
-         linkType(PCAP_ERROR_NOT_ACTIVATED),
-         linkTypeStr(NULL),
-         linkOffset(0),
-         errBuf_{'\0'},
-         running_(false)
+Capture::Capture(const char *deviceName, int snaplen, bool promisc, int msTimeout)
+        :name_(deviceName),
+         isLive(true)
+
 {
-    pcap_ = pcap_open_live(device, snaplen, promisc, msTimeout, errBuf_);
+    pcap_ = pcap_open_live(deviceName, snaplen, promisc, msTimeout, errBuf_);
 
     // may warning
     if (pcap_ != NULL && errBuf_[0] != '\0') {
@@ -34,31 +29,27 @@ Capture::Capture(const char *device, int snaplen, bool promisc, int msTimeout)
         exit(1);
     }
 
-    linkType = pcap_datalink(pcap_);
+    initLinkType();
 
-    linkTypeStr = pcap_datalink_val_to_name(linkType);
-    assert(linkTypeStr != NULL);
+    LOG_DEBUG << "Capture: open, link type " << linkTypeStr_;
 
-    switch (linkType) {
-        // ethernet packet
-        case DLT_EN10MB:
-            linkOffset = 14;
-            break;
-        case DLT_LINUX_SLL:
-            linkOffset = 16;
-            break;
-        case PCAP_ERROR_NOT_ACTIVATED:
-            // can never happen
-            LOG_FATAL << "Capture: not activated";
-            break;
-        default:
-            LOG_ERROR << "capture " << device_
-                     <<": unsupported link type "
-                     << linkTypeStr;
-            exit(1);
+    addPacketCallBack(std::bind(
+            &Capture::onPacket, this, _1, _2, _3));
+}
+
+Capture::Capture(const char *fileName)
+        :name_(fileName),
+         isLive(false)
+{
+    pcap_ = pcap_open_offline(fileName, errBuf_);
+    if (pcap_ == NULL) {
+        LOG_ERROR << "Capture " << errBuf_;
+        exit(1);
     }
 
-    LOG_DEBUG << "Capture: open, link type " << linkTypeStr;
+    initLinkType();
+
+    LOG_DEBUG << "Capture: open, link type " << linkTypeStr_;
 
     addPacketCallBack(std::bind(
             &Capture::onPacket, this, _1, _2, _3));
@@ -80,7 +71,7 @@ void Capture::startLoop(int packetCount)
     assert(!running_);
     running_ = true;
 
-    LOG_INFO << "Capture: started, link type " << linkTypeStr;
+    LOG_INFO << "Capture: started, link type " << linkTypeStr_;
 
     int err = pcap_loop(pcap_, packetCount, internalCallBack, reinterpret_cast<u_char*>(this));
     switch (err) {
@@ -129,6 +120,10 @@ void Capture::setFilter(const char *str)
 
 void Capture::logCaptureStats()
 {
+    if (!isLive) {
+        return;
+    }
+
     pcap_stat stat;
     pcap_stats(pcap_, &stat);
     LOG_INFO << "Capture: receive packet " << stat.ps_recv
@@ -136,21 +131,58 @@ void Capture::logCaptureStats()
              << ", drop by filter " << stat.ps_ifdrop;
 }
 
+void Capture::initLinkType()
+{
+    assert(pcap_ != NULL);
+
+    linkType_ = pcap_datalink(pcap_);
+    linkTypeStr_ = pcap_datalink_val_to_name(linkType_);
+
+    assert(linkTypeStr_ != NULL);
+
+    switch (linkType_) {
+        // ethernet packet
+        case DLT_EN10MB:
+            linkOffset_ = 14;
+            break;
+        case DLT_LINUX_SLL:
+            linkOffset_ = 16;
+            break;
+        case PCAP_ERROR_NOT_ACTIVATED:
+            // can never happen
+            LOG_FATAL << "Capture: not activated";
+            break;
+        default:
+            LOG_ERROR << "capture " << name_
+                      <<": unsupported link type "
+                      << linkTypeStr_;
+            exit(1);
+    }
+}
+
 void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeStamp)
 {
+<<<<<<< HEAD
     if (hdr->caplen <= linkOffset)
     {
+=======
+    if (hdr->caplen <= linkOffset_) {
+>>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
         LOG_WARN << "Capture: packet too short";
         return;
     }
 
+<<<<<<< HEAD
     switch (linkType)
     {
+=======
+    switch (linkType_) {
+>>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
 
         case DLT_EN10MB:
             if (data[12] == 0x81 && data[13] == 0) {
                 /* Skip 802.1Q VLAN and priority information */
-                linkOffset = 18;
+                linkOffset_ = 18;
             }
             else if (data[12] != 0x08 || data[13] != 0x00) {
                 LOG_DEBUG << "Capture: receive none IP packet";
@@ -171,9 +203,16 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeS
             return;
     }
 
+<<<<<<< HEAD
     for (auto& func : ipFragmentCallbacks_)
     {
         func((ip*)(data + linkOffset), hdr->caplen - linkOffset, timeStamp);
+=======
+    for (auto& func : ipFragmentCallbacks_) {
+        func((ip*)(data + linkOffset_),
+             hdr->caplen - linkOffset_,
+             timeStamp);
+>>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
     }
 }
 
