@@ -15,7 +15,7 @@ void tcpConnection(TcpStream* tcp_connection,timeval timeStamp)
     return ;
 }
 
-void tcpData(TcpStream* tcp_connection,timeval timeStamp,u_char* u_data,int datalen)
+void tcpData(TcpStream* tcp_connection,timeval timeStamp,u_char* u_data,int datalen,int)
 {
 //    LOG_INFO<<"data";
     u_data[datalen-1]='\0';

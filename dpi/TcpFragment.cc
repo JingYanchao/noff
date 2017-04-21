@@ -577,7 +577,10 @@ void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u
     {
         for(auto& func:tcpdataCallback_)
         {
-            func(a_tcp,timeStamp,data,datalen);
+            if(rcv == &a_tcp->server)
+                func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
+            else
+                func(a_tcp,timeStamp,data,datalen,FROMSERVER);
         }
         return;
     }
@@ -588,7 +591,10 @@ void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u
         total=a_tcp->read;
         for(auto& func:tcpdataCallback_)
         {
-            func(a_tcp,timeStamp,data,datalen);
+            if(rcv == &a_tcp->server)
+                func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
+            else
+                func(a_tcp,timeStamp,data,datalen,FROMSERVER);
         }
         if (a_tcp->read>total-rcv->count_new)
             rcv->count_new=total-a_tcp->read;

@@ -5,7 +5,8 @@
 #ifndef NOFF_UTIL_H
 #define NOFF_UTIL_H
 #include <stdlib.h>
-
+const int FROMCLIENT = 0;
+const int FROMSERVER = 1;
 struct tuple4
 {
     u_short source;
