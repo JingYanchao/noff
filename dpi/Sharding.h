@@ -10,7 +10,8 @@
 
 #include "Util.h"
 
-class Sharding {
+class Sharding
+{
 
 public:
     Sharding();

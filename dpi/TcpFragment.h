@@ -6,7 +6,7 @@
 #define NOFF_TCPFRAGMENT_H
 
 #include "Hash.h"
-#include "util.h"
+#include "Util.h"
 #include <stdlib.h>
 #include <functional>
 #include <vector>
@@ -90,6 +90,7 @@ struct halfStream
 
 struct tcpStream
 {
+
     struct tuple4 addr;
     char nids_state;
     struct halfStream client;
@@ -103,6 +104,7 @@ struct tcpStream
     struct tcpStream *next_free;
     void *user;
     long ts;
+    tcpTimeout* timer;
 };
 
 class TcpFragment
@@ -168,6 +170,7 @@ private:
     void purgeQueue(struct halfStream *h);
     void delTcpclosingtimeout(struct tcpStream *a_tcp);
     void addTcpclosingtimeout(struct tcpStream *a_tcp,timeval);
+    void updateTcpclosingtimeout(struct tcpStream *a_tcp,timeval timeStamp);
     void add2buf(struct halfStream * rcv, char *data, int datalen);
     void addFromskb(struct tcpStream *a_tcp, struct halfStream *rcv,
                     struct halfStream *snd,

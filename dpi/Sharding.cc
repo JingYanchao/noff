@@ -83,7 +83,8 @@ Sharding::Sharding()
     initRandom();
     for (i = 0; i < 6; i++)
         p[i] = i;
-    for (i = 0; i < 6; i++) {
+    for (i = 0; i < 6; i++)
+    {
         n = perm_[i] % (6 - i);
         perm_[i] = (u_char) p[n];
 

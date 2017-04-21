@@ -28,11 +28,10 @@ Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSiz
      taskCounter_(nWorkers_)
 {
     workers_.reserve(nWorkers_);
-    for (size_t i = 0; i < nWorkers_; ++i) {
-
+    for (size_t i = 0; i < nWorkers_; ++i)
+    {
         char name[32];
         snprintf(name, sizeof name, "%s%lu", "worker", i + 1);
-
         workers_.emplace_back(new muduo::ThreadPool(name));
         workers_[i]->setMaxQueueSize(queueSize_);
         workers_[i]->start(1);

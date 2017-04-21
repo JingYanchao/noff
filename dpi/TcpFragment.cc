@@ -156,20 +156,23 @@ void TcpFragment::delTcpclosingtimeout(struct tcpStream *a_tcp)
     free(to);
 }
 
+void TcpFragment::updateTcpclosingtimeout(tcpStream *a_tcp,timeval timeStamp)
+{
+    delTcpclosingtimeout(a_tcp);
+    addTcpclosingtimeout(a_tcp,timeStamp);
+}
+
 
 void TcpFragment::addTcpclosingtimeout(struct tcpStream *a_tcp,timeval timeStamp)
 {
     struct tcpTimeout *to;
     struct tcpTimeout *newto;
 
-    newto = (tcpTimeout *) malloc(sizeof (struct tcpTimeout));
+    newto = (tcpTimeout *) malloc(sizeof (tcpTimeout));
     if (!newto)
-    {
-        LOG_ERROR<<"the memory of addTcpclosingtimeout is invalid";
-        exit(1);
-    }
+        LOG_ERROR<<"no memory for newto";
     newto->a_tcp = a_tcp;
-    newto->timeout.tv_sec = timeStamp.tv_sec + 10;
+    newto->timeout.tv_sec = timeStamp.tv_sec + 60;
     newto->prev = 0;
     for (newto->next = to = nidsTcpTimeouts; to; newto->next = to = to->next)
     {
@@ -310,6 +313,7 @@ void TcpFragment::tcpQueue(struct tcpStream *a_tcp, struct tcphdr *this_tcphdr,
      */
     //EXP_SEQ是目前已集齐的数据流水号，我们希望收到从这里开始的数据
     //先判断数据是不是在EXP_SEQ之前开始
+
     if (!after(this_seq, EXP_SEQ))
     {
         //再判断数据长度是不是在EXP_SEQ之后，如果是，说明有新数据，否则是重发的包，无视之
@@ -319,6 +323,7 @@ void TcpFragment::tcpQueue(struct tcpStream *a_tcp, struct tcphdr *this_tcphdr,
             getTs(this_tcphdr, &snd->curr_ts);
             //ok，更新集齐的数据区，值得一提的是add_from_skb函数一旦发现集齐了一段数据之后
             //便立刻调用notify函数，在notify函数里面将数据推给回调方
+            updateTcpclosingtimeout(a_tcp,timeStamp);
             addFromskb(a_tcp, rcv, snd, (u_char *) data, datalen, this_seq,
                        (this_tcphdr->th_flags & TH_FIN),
                        (this_tcphdr->th_flags & TH_URG),
@@ -787,7 +792,6 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
                 a_tcp->ts = timeStamp.tv_sec;
                 a_tcp->server.state = TCP_ESTABLISHED;
                 a_tcp->nids_state = NIDS_JUST_EST;
-                LOG_INFO<<"start2";
                 for(auto& func:tcpconnectionCallback_)
                 {
                     func(a_tcp,timeStamp);
@@ -816,7 +820,6 @@ void TcpFragment::processTcp(ip *data, int skblen,timeval timeStamp)//传入数�
         if (rcv->state == FIN_CONFIRMED && snd->state == FIN_CONFIRMED)
         {
             a_tcp->nids_state = NIDS_CLOSE;
-            LOG_INFO<<"close";
             for (auto& func:tcpcloseCallbacks_)
             {
                 func(a_tcp,timeStamp);
@@ -838,7 +841,6 @@ void TcpFragment::notify(struct tcpStream * a_tcp, struct halfStream * rcv,timev
 {
     struct lurker_node *i, **prev_addr;
     char mask;
-    LOG_INFO<<"notify";
     if (rcv->count_new_urg)
     {
         for(auto& func:tcpdataCallback_)

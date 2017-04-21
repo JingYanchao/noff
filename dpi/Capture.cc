@@ -114,12 +114,14 @@ void Capture::breakLoop()
 
 void Capture::setFilter(const char *str)
 {
-    if (pcap_compile(pcap_, &filter_, str, 1, 0) < 0) {
+    if (pcap_compile(pcap_, &filter_, str, 1, 0) < 0)
+    {
         LOG_ERROR << "pcap compile: " << pcap_geterr(pcap_);
         exit(1);
     }
 
-    if (pcap_setfilter(pcap_, &filter_) == -1) {
+    if (pcap_setfilter(pcap_, &filter_) == -1)
+    {
         LOG_ERROR << "pcap setfilter: " << pcap_geterr(pcap_);
         exit(1);
     }
@@ -136,12 +138,14 @@ void Capture::logCaptureStats()
 
 void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeStamp)
 {
-    if (hdr->caplen <= linkOffset) {
+    if (hdr->caplen <= linkOffset)
+    {
         LOG_WARN << "Capture: packet too short";
         return;
     }
 
-    switch (linkType) {
+    switch (linkType)
+    {
 
         case DLT_EN10MB:
             if (data[12] == 0x81 && data[13] == 0) {
@@ -167,10 +171,9 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeS
             return;
     }
 
-    for (auto& func : ipFragmentCallbacks_) {
-        func((ip*)(data + linkOffset),
-             hdr->caplen - linkOffset,
-             timeStamp);
+    for (auto& func : ipFragmentCallbacks_)
+    {
+        func((ip*)(data + linkOffset), hdr->caplen - linkOffset, timeStamp);
     }
 }
 
@@ -179,7 +182,8 @@ void Capture::internalCallBack(u_char *user, const struct pcap_pkthdr *hdr, cons
 
     Capture *cap = reinterpret_cast<Capture*>(user);
 
-    for (auto& func : cap->packetCallbacks_) {
+    for (auto& func : cap->packetCallbacks_)
+    {
         func(hdr, data, hdr->ts);
     }
 }
