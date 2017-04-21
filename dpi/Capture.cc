@@ -162,22 +162,12 @@ void Capture::initLinkType()
 
 void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeStamp)
 {
-<<<<<<< HEAD
-    if (hdr->caplen <= linkOffset)
-    {
-=======
     if (hdr->caplen <= linkOffset_) {
->>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
         LOG_WARN << "Capture: packet too short";
         return;
     }
 
-<<<<<<< HEAD
-    switch (linkType)
-    {
-=======
     switch (linkType_) {
->>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
 
         case DLT_EN10MB:
             if (data[12] == 0x81 && data[13] == 0) {
@@ -203,16 +193,10 @@ void Capture::onPacket(const pcap_pkthdr *hdr, const u_char *data, timeval timeS
             return;
     }
 
-<<<<<<< HEAD
-    for (auto& func : ipFragmentCallbacks_)
-    {
-        func((ip*)(data + linkOffset), hdr->caplen - linkOffset, timeStamp);
-=======
     for (auto& func : ipFragmentCallbacks_) {
         func((ip*)(data + linkOffset_),
              hdr->caplen - linkOffset_,
              timeStamp);
->>>>>>> 2a563d3bddc8ee7dc983b512a0b42ec1f30b9c6d
     }
 }
 
