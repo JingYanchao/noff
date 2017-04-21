@@ -19,7 +19,8 @@ public:
     typedef std::function<void(const ip*, int, timeval)> IpFragmentCallback;
 
     explicit
-    Capture(const char *device, int snaplen, bool promisc, int msTimeout);
+    Capture(const char *deviceName, int snaplen, bool promisc, int msTimeout);
+    Capture(const char *fileName);
     ~Capture();
 
     void addPacketCallBack(const PacketCallback& cb)
@@ -40,18 +41,20 @@ public:
     void setFilter(const char *str);
 
 private:
-    pcap_t          *pcap_;
+    pcap_t          *pcap_ = NULL;
 
-    std::string     device_;
+    std::string     name_;
+    bool            isLive;
+
     bpf_program     filter_;
 
-    int             linkType;
-    const char      *linkTypeStr;
-    uint32_t        linkOffset;
+    int             linkType_ = PCAP_ERROR_NOT_ACTIVATED;
+    const char      *linkTypeStr_ = NULL;
+    uint32_t        linkOffset_ = 0;
 
-    char            errBuf_[PCAP_ERRBUF_SIZE];
+    char            errBuf_[PCAP_ERRBUF_SIZE] = {'\0'};
 
-    bool            running_;
+    bool            running_ = false;
 
 
     std::vector<PacketCallback>      packetCallbacks_;
@@ -60,6 +63,7 @@ private:
     void onPacket(const pcap_pkthdr *, const u_char *, timeval);
 
     void logCaptureStats();
+    void initLinkType();
 
     static void internalCallBack(u_char *user, const struct pcap_pkthdr *hdr, const u_char *data);
 };
