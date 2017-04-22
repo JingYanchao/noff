@@ -31,7 +31,7 @@ Capture::Capture(const char *deviceName, int snaplen, bool promisc, int msTimeou
 
     initLinkType();
 
-    LOG_DEBUG << "Capture: open, link type " << linkTypeStr_;
+    LOG_TRACE << "Capture: open, link type " << linkTypeStr_;
 
     addPacketCallBack(std::bind(
             &Capture::onPacket, this, _1, _2, _3));
@@ -71,7 +71,7 @@ void Capture::startLoop(int packetCount)
     assert(!running_);
     running_ = true;
 
-    LOG_INFO << "Capture: started, link type " << linkTypeStr_;
+    LOG_INFO << "Capture " << name_ << ": started, link type " << linkTypeStr_;
 
     int err = pcap_loop(pcap_, packetCount, internalCallBack, reinterpret_cast<u_char*>(this));
     switch (err) {

@@ -64,7 +64,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
     }
     catch (const muduo::Exception &ex) {
         // not UDP, TCP, ICMP protocals, this is usual
-        LOG_DEBUG << "Dispatcher: " << ex.what();
+        LOG_TRACE << "Dispatcher: " << ex.what();
         return;
     }
     catch (...)

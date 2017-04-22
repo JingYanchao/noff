@@ -85,7 +85,7 @@ int Http::onStatus(HttpParser *parser, const char *data, size_t len)
     Http *http = (Http*)parser->data;
     HttpResponse *response = http->currentHttpResponse;
 
-    assert(parser->type == HTTP_REQUEST);
+    assert(parser->type == HTTP_RESPONSE);
 
     response->statusCode.assign(data, len);
 
@@ -143,7 +143,7 @@ http_parser_settings Http::settings = {
         NULL,               // on_chunk_complete;
 };
 
-void Http::onTcpConnection(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
+void Http::onTcpConnection(TcpStream *stream, timeval timeStamp)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -175,70 +175,70 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
     currentHttpResponse = &detail.responseData;
 
     // parser request
-    if (char *data = stream->server.data) {
+    if (flag == FROMCLIENT) {
 
         HttpParser *parser = &detail.requestParser;
 
         http_parser_execute(
                 parser,
                 &settings,
-                data,
-                (size_t) stream->server.count
+                (char*)data,
+                (size_t)len
         );
 
         if (parser->http_errno != 0) {
             LOG_WARN << "HTTP request: "
                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
+            //table.erase(it);
         }
     }
 
     // parser response
-    if (char *data = stream->client.data) {
+    else if (flag == FROMSERVER) {
 
         HttpParser *parser = &detail.responseParser;
 
         http_parser_execute(
                 &detail.responseParser,
                 &settings,
-                data,
-                (size_t) stream->client.count
+                (char*)data,
+                (size_t)len
         );
 
         if (parser->http_errno != 0) {
             LOG_WARN << "HTTP response: "
                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
+            //table.erase(it);
         }
+    }
+    else {
+        LOG_FATAL << "Http: unknow flag";
     }
 }
 
-void Http::onTcpClose(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
+void Http::onTcpClose(TcpStream *stream, timeval timeStamp)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
     }
 
-    // may have data
-    onTcpData(stream, timeStamp);
 
     if (table.erase(t4) != 1) {
         LOG_FATAL << "HTTP: TCP close without connection";
     }
 }
 
-void Http::onTcpRst(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
+void Http::onTcpRst(TcpStream *stream, timeval timeStamp)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
     }
-
-    if (table.erase(t4) != 1) {
-        LOG_FATAL << "HTTP: TCP reset without connection";
-    }
+    table.erase(t4);
 }
 
-void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
+void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp)
 {
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {

@@ -57,14 +57,14 @@ class Http : muduo::noncopyable
 {
 public:
 
-    typedef std::function<void(const HttpRequest*)> HttpRequestCallback;
-    typedef std::function<void(const HttpResponse*)> HttpResponseCallback;
+    typedef std::function<void(HttpRequest*)> HttpRequestCallback;
+    typedef std::function<void(HttpResponse*)> HttpResponseCallback;
 
-    void onTcpConnection(TcpStream*, timeval, u_char*, int, int );
+    void onTcpConnection(TcpStream*, timeval);
     void onTcpData(TcpStream*, timeval, u_char*, int, int );
-    void onTcpClose(TcpStream*, timeval, u_char*, int, int );
-    void onTcpRst(TcpStream*, timeval, u_char*, int, int );
-    void onTcpTimeout(TcpStream*, timeval, u_char*, int, int );
+    void onTcpClose(TcpStream*, timeval);
+    void onTcpRst(TcpStream*, timeval);
+    void onTcpTimeout(TcpStream*, timeval);
 
     void addHttpRequestCallback(const HttpRequestCallback& cb)
     {

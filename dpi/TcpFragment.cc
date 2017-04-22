@@ -516,7 +516,7 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
                              u_char *data, int datalen,
                              u_int this_seq, char fin, char urg, u_int urg_ptr,timeval timeStamp)
 {
-    LOG_WARN<<"addfromskb";
+    LOG_TRACE<<"addfromskb";
     u_int lost = EXP_SEQ - this_seq;
     int to_copy, to_copy2;
     //如果有紧急数据在当前期望序号之后
