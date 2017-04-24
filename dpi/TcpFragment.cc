@@ -17,9 +17,6 @@ TcpFragment::~TcpFragment()
 }
 int TcpFragment::tcpInit(int size)
 {
-    int i;
-    struct tcpTimeout *tmp;
-
     if (!size)
         return 0;
 
@@ -64,6 +61,10 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
             break;
         //如果时间到达的话,就将tcp的数据上传
         //进行回调
+        for (auto& func:tcpcloseCallbacks_)
+        {
+            func(It->a_tcp,timeStamp);
+        }
         freeTcpstream(It->a_tcp);
     }
     return;
@@ -76,7 +77,6 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
     tcphdr *this_tcphdr = (tcphdr *)((u_char*)data + 4 * this_iphdr->ip_hl);
     int datalen,iplen;
     int from_client = 1;
-    unsigned int tmp_ts;//时间戳
     TcpStream* a_tcp;
     HalfStream* snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
     iplen = ntohs(this_iphdr->ip_len);
@@ -99,6 +99,7 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
     }
 
     /***经过以上处，初步判断tcp包正常，进行入队操作，插入队列前，先进行此包的状态判断，判断此数据包处于何种状态***/
+
 
     //在哈希表里找找，如果没有此tcp会话则看看是不是要新建一个
     if (!(a_tcp = findStream(this_tcphdr, this_iphdr, &from_client)))
@@ -184,6 +185,7 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
         return;
     }
 
+
     if (!(!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq ) //不是流水号正确且没数据的包
         &&//而且这个包不再当前窗口之内
             (!before(ntohl(this_tcphdr->th_seq), rcv->ack_seq + rcv->window*rcv->wscale) ||
@@ -265,7 +267,6 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
 
 void TcpFragment::freeTcpData(TcpStream *a_tcp)
 {
-    int hash_index = a_tcp->hash_index;
     delTcptimeout(a_tcp);
     delFintimeout(a_tcp);
     purgeQueue(&a_tcp->client);
@@ -275,6 +276,8 @@ void TcpFragment::freeTcpData(TcpStream *a_tcp)
 
 void TcpFragment::freeTcpstream(TcpStream *a_tcp)
 {
+    if(a_tcp==NULL)
+        return;
     int hash_index = a_tcp->hash_index;
     delTcptimeout(a_tcp);
     delFintimeout(a_tcp);
@@ -436,7 +439,6 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
                            char *data, int datalen, int skblen,timeval timeStamp)
 {
     u_int this_seq = ntohl(this_tcphdr->th_seq);
-    Skbuff *tmp;
 
     //EXP_SEQ是目前已集齐的数据流水号，我们希望收到从这里开始的数据
     //先判断数据是不是在EXP_SEQ之前开始
@@ -508,7 +510,16 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
         pakiet.seq = this_seq;
         pakiet.urg = (this_tcphdr->th_flags & TH_URG);
         pakiet.urg_ptr = ntohs(this_tcphdr->th_urp);
-        rcv->fraglist.push_back(pakiet);
+        auto It = rcv->fraglist.begin();
+        while(It!=rcv->fraglist.end())
+        {
+            if (!after(It->seq, this_seq))
+            {
+                break;
+            }
+            It++;
+        }
+        rcv->fraglist.insert(It,pakiet);
     }
 }
 
@@ -516,7 +527,6 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
                              u_char *data, int datalen,
                              u_int this_seq, char fin, char urg, u_int urg_ptr,timeval timeStamp)
 {
-    LOG_TRACE<<"addfromskb";
     u_int lost = EXP_SEQ - this_seq;
     int to_copy, to_copy2;
     //如果有紧急数据在当前期望序号之后
@@ -615,7 +625,7 @@ void TcpFragment::addTcptimeout(TcpStream *a_tcp,timeval timeStamp)
     Timeout temp;
     temp.a_tcp = a_tcp;
     temp.time = timeStamp;
-    temp.time.tv_sec+=60;
+    temp.time.tv_sec+=10;
     tcpTimeoutSet_.insert(std::move(temp));
 }
 
@@ -642,7 +652,7 @@ void TcpFragment::addFintimeout(TcpStream *a_tcp,timeval timeStamp)
     Timeout temp;
     temp.a_tcp = a_tcp;
     temp.time = timeStamp;
-    temp.time.tv_sec += 10;
+    temp.time.tv_sec += 3;
     finTimeoutSet_.insert(std::move(temp));
 
 }
@@ -673,13 +683,11 @@ void TcpFragment::purgeQueue(HalfStream *h)
 {
     if(h->fraglist.empty())
         return;
-//    int sizes = h->fraglist.size();
-    h->fraglist.size();
-//    for(auto res:h->fraglist)
-//    {
-////        free(res.data);
-//    }
-
+    for(auto res:h->fraglist)
+    {
+        if(res.data!=NULL)
+            free(res.data);
+    }
     h->rmem_alloc = 0;
 }
 
