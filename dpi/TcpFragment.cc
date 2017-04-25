@@ -25,7 +25,6 @@ int TcpFragment::tcpInit(int size)
     tcphashmap_.clear();
     finTimeoutSet_.clear();
     tcpTimeoutSet_.clear();
-    tcpNum = 0;
     return 0;
 }
 void TcpFragment::tcpExit(void)
@@ -39,7 +38,6 @@ void TcpFragment::tcpExit(void)
     tcphashmap_.clear();
     finTimeoutSet_.clear();
     tcpTimeoutSet_.clear();
-    tcpNum = 0;
 }
 void TcpFragment::tcpChecktimeouts(timeval timeStamp)
 {
@@ -47,15 +45,19 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
     {
         if (timeStamp.tv_sec < It->time.tv_sec)
             break;
-        //如果时间到达的话,就将tcp的数据上传
-        //进行回调
-        for(auto& func:tcptimeoutCallback_)
+//        如果时间到达的话,就将tcp的数据上传
+        if(It->a_tcp->isconnnection==1)
         {
-            if(It->a_tcp==NULL)
-                break;
-            func(It->a_tcp,timeStamp);
+            for(auto& func:tcptimeoutCallback_)
+            {
+                if(It->a_tcp==NULL)
+                    break;
+                func(It->a_tcp,timeStamp);
+            }
         }
+
         freeTcpstream(It->a_tcp);
+
     }
     for (auto It = finTimeoutSet_.begin();It!= finTimeoutSet_.end();It++)
     {
@@ -195,9 +197,12 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
     //将现有数据推给注册的回调方，然后销毁这个会话。
     if ((this_tcphdr->th_flags & TH_RST))
     {
-        for(auto& func:tcprstCallback_)
+        if(a_tcp->isconnnection==1)
         {
-            func(a_tcp,timeStamp);
+            for(auto& func:tcprstCallback_)
+            {
+                func(a_tcp,timeStamp);
+            }
         }
         freeTcpstream(a_tcp);
         return;
@@ -222,6 +227,7 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
                 {
                     func(a_tcp,timeStamp);
                 }
+                a_tcp->isconnnection = 1;
             }
         }
     }
@@ -241,9 +247,12 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
         //流关闭，并进行回调
         if (rcv->state == FIN_CONFIRMED && snd->state == FIN_CONFIRMED)
         {
-            for (auto& func:tcpcloseCallbacks_)
+            if(a_tcp->isconnnection==1)
             {
-                func(a_tcp,timeStamp);
+                for (auto& func:tcpcloseCallbacks_)
+                {
+                    func(a_tcp,timeStamp);
+                }
             }
             freeTcpstream(a_tcp);
             return;
@@ -263,8 +272,10 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
 
     //更新窗口大小
     snd->window = ntohs(this_tcphdr->th_win);
-//    if (rcv->rmem_alloc > 65535)
-//        purgeQueue(rcv);
+    if (rcv->rmem_alloc > 65535)
+    {
+        freeTcpstream(a_tcp);
+    }
 }
 
 void TcpFragment::freeTcpData(TcpStream *a_tcp)
@@ -273,7 +284,6 @@ void TcpFragment::freeTcpData(TcpStream *a_tcp)
     delFintimeout(a_tcp);
     purgeQueue(&a_tcp->client);
     purgeQueue(&a_tcp->server);
-    tcpNum--;
 }
 
 void TcpFragment::freeTcpstream(TcpStream *a_tcp)
@@ -291,14 +301,13 @@ void TcpFragment::freeTcpstream(TcpStream *a_tcp)
         if(&it->second == a_tcp)
         {
             it = tcphashmap_.erase(it);
-            break;
         }
         else
         {
             ++it;
         }
     }
-    tcpNum--;
+
 }
 
 
@@ -322,7 +331,7 @@ TcpStream* TcpFragment::findStream_aux(tuple4 addr)
                 a_tcp = &(it->second);
             }
         }
-        return a_tcp;
+        return a_tcp?a_tcp:0;
     }
 }
 
@@ -368,15 +377,15 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     hash_index = hash.get_key(addr.saddr,addr.source,addr.daddr,addr.dest,tcpStreamTableSize_);
 
     //队列已经满了,新的直接不缓存
-    if (tcpNum > tcpStreamTableSize_)
+    if (tcphashmap_.size()> tcpStreamTableSize_)
     {
         LOG_WARN<<"the tcp_queue is out of range";
         return;
     }
-    tcpNum++;
+
     a_tcp.client.count = 0;
     a_tcp.server.count = 0;
-    a_tcp.read = 0;
+    a_tcp.isconnnection = 0;
     a_tcp.server.rmem_alloc = 0;
     a_tcp.client.rmem_alloc = 0;
     a_tcp.client.ack_seq = 0;
@@ -394,13 +403,17 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     a_tcp.server.state = TCP_CLOSE;
     a_tcp.ts = timeStamp.tv_sec;
     tcphashmap_.insert(std::make_pair(hash_index,a_tcp));
+//    LOG_INFO<<"the hashsize:"<<tcphashmap_.size();
 
-    tuple4 this_addr,reversed;
+    tuple4 this_addr;
     this_addr.source = ntohs(this_tcphdr->th_sport);
     this_addr.dest = ntohs(this_tcphdr->th_dport);
     this_addr.saddr = this_iphdr->ip_src.s_addr;
     this_addr.daddr = this_iphdr->ip_dst.s_addr;
-    addTcptimeout(findStream_aux(addr),timeStamp);
+    TcpStream* temp = findStream_aux(this_addr);
+    if(temp)
+        addTcptimeout(temp,timeStamp);
+
 }
 
 int TcpFragment::getWscale(struct tcphdr *this_tcphdr, unsigned int *ws)
@@ -471,13 +484,14 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
              */
             //此时EXP_SEQ有了变化了，看看缓冲区里的包有没有符合条件能用同样的方法处理掉的
             //有就处理掉，然后释放
+            if(rcv->fraglist.empty())
+                return;
             for (auto frag = rcv->fraglist.begin(); frag != rcv->fraglist.end();)
             {
                 if (after(frag->seq, EXP_SEQ)) //流水号在后面
                     break;
                 if (after(frag->seq + frag->len + frag->fin, EXP_SEQ))
                 {
-                    LOG_INFO<<"get char";
                     updateTcptimeout(a_tcp, timeStamp);
                     addFromskb(a_tcp, rcv, snd, (u_char *) frag->data,
                                frag->len, frag->seq, frag->fin, frag->urg,
@@ -540,7 +554,7 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
         if(It!=rcv->fraglist.end())
             It--;
         else
-            rcv->fraglist.insert(It,pakiet);
+            rcv->fraglist.push_back(pakiet);
     }
 }
 
@@ -606,21 +620,28 @@ void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u
         return;
     if (rcv->count_new_urg)
     {
-        for(auto& func:tcpdataCallback_)
+        if(data&&a_tcp->isconnnection)
         {
-            if(rcv == &a_tcp->server)
-                func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
-            else
-                func(a_tcp,timeStamp,data,datalen,FROMSERVER);
+            for(auto& func:tcpdataCallback_)
+            {
+                if(rcv == &a_tcp->server)
+                    func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
+                else
+                    func(a_tcp,timeStamp,data,datalen,FROMSERVER);
+            }
         }
+
         return;
     }
     for(auto& func:tcpdataCallback_)
     {
-        if(rcv == &a_tcp->server)
-            func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
-        else
-            func(a_tcp,timeStamp,data,datalen,FROMSERVER);
+        if(data&&a_tcp->isconnnection)
+        {
+            if (rcv == &a_tcp->server)
+                func(a_tcp, timeStamp, data, datalen, FROMCLIENT);
+            else
+                func(a_tcp, timeStamp, data, datalen, FROMSERVER);
+        }
     }
 // we know that if one_loop_less!=0, we have only one callback to notify
     rcv->count_new=0;
@@ -632,7 +653,7 @@ void TcpFragment::addTcptimeout(TcpStream *a_tcp,timeval timeStamp)
     Timeout temp;
     temp.a_tcp = a_tcp;
     temp.time = timeStamp;
-    temp.time.tv_sec+=10;
+    temp.time.tv_sec+=20;
     tcpTimeoutSet_.insert(std::move(temp));
 }
 
@@ -644,7 +665,6 @@ void TcpFragment::delTcptimeout(TcpStream *a_tcp)
         if(It->a_tcp == a_tcp)
         {
             It = tcpTimeoutSet_.erase(It);
-            return;
         }
         else
         {
@@ -661,8 +681,6 @@ void TcpFragment::addFintimeout(TcpStream *a_tcp,timeval timeStamp)
     temp.time = timeStamp;
     temp.time.tv_sec += 5;
     finTimeoutSet_.insert(std::move(temp));
-
-
 }
 
 void TcpFragment::delFintimeout(TcpStream *a_tcp)
@@ -672,7 +690,6 @@ void TcpFragment::delFintimeout(TcpStream *a_tcp)
         if(It->a_tcp == a_tcp)
         {
             It = finTimeoutSet_.erase(It);
-            break;
         }
         else
         {
@@ -689,12 +706,12 @@ void TcpFragment::updateTcptimeout(TcpStream *a_tcp,timeval timeStamp)
 
 void TcpFragment::purgeQueue(HalfStream *h)
 {
-    if(h->fraglist.empty())
+    if(h->fraglist.size()<=0)
         return;
-    for(auto res:h->fraglist)
+    for(auto res = h->fraglist.begin();res!=h->fraglist.end();res++)
     {
-        if(res.data!=NULL)
-            free(res.data);
+        if(res->data!=NULL)
+            free(res->data);
     }
     h->rmem_alloc = 0;
     h->fraglist.clear();
