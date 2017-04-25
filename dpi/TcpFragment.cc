@@ -43,18 +43,18 @@ void TcpFragment::tcpExit(void)
 }
 void TcpFragment::tcpChecktimeouts(timeval timeStamp)
 {
-//    for (auto It = tcpTimeoutSet_.begin();It!=tcpTimeoutSet_.end();It++)
-//    {
-//        if (timeStamp.tv_sec < It->time.tv_sec)
-//            break;
-//        //如果时间到达的话,就将tcp的数据上传
-//        //进行回调
-//        for(auto& func:tcptimeoutCallback_)
-//        {
-//            func(It->a_tcp,timeStamp);
-//        }
-//        freeTcpstream(It->a_tcp);
-//    }
+    for (auto It = tcpTimeoutSet_.begin();It!=tcpTimeoutSet_.end();It++)
+    {
+        if (timeStamp.tv_sec < It->time.tv_sec)
+            break;
+        //如果时间到达的话,就将tcp的数据上传
+        //进行回调
+        for(auto& func:tcptimeoutCallback_)
+        {
+            func(It->a_tcp,timeStamp);
+        }
+        freeTcpstream(It->a_tcp);
+    }
     for (auto It = finTimeoutSet_.begin();It!= finTimeoutSet_.end();It++)
     {
         if (timeStamp.tv_sec < It->time.tv_sec)
@@ -187,11 +187,11 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
     }
 //    LOG_INFO<<"THIS WAY:";
 //
-//    if (!(!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq ) //不是流水号正确且没数据的包
-//        &&//而且这个包不再当前窗口之内
-//            (!before(ntohl(this_tcphdr->th_seq), rcv->ack_seq + rcv->window*rcv->wscale) ||
-//              before(ntohl(this_tcphdr->th_seq) + datalen, rcv->ack_seq)))
-//        return;
+    if (!(!datalen && ntohl(this_tcphdr->th_seq) == rcv->ack_seq ) //不是流水号正确且没数据的包
+        &&//而且这个包不再当前窗口之内
+            (!before(ntohl(this_tcphdr->th_seq), rcv->ack_seq + rcv->window*rcv->wscale) ||
+              before(ntohl(this_tcphdr->th_seq) + datalen, rcv->ack_seq)))
+        return;
 
     //如果是rst包，ok，关闭连接
     //将现有数据推给注册的回调方，然后销毁这个会话。
@@ -251,7 +251,10 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
             return;
         }
     }
-
+//    if(a_tcp->addr.dest == 80&&datalen>0)
+//    {
+//        LOG_INFO<<"80 data";
+//    }
     //下面处理数据包，和初始的fin包
     if (datalen + (this_tcphdr->th_flags & TH_FIN) > 0)
     {
@@ -373,7 +376,8 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
         return;
     }
     tcpNum++;
-
+    a_tcp.client.count = 0;
+    a_tcp.server.count = 0;
     a_tcp.hash_index = hash_index;
     a_tcp.addr = addr;
     a_tcp.client.state = TCP_SYN_SENT;
@@ -443,10 +447,10 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
 
     //EXP_SEQ是目前已集齐的数据流水号，我们希望收到从这里开始的数据
     //先判断数据是不是在EXP_SEQ之前开始
-
     if (!after(this_seq, (snd->first_data_seq + rcv->count + rcv->urg_count)))
     {
         //再判断数据长度是不是在EXP_SEQ之后，如果是，说明有新数据，否则是重发的包，无视之
+//        LOG_INFO<<(u_int)(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN))<<" "<<(u_int)(snd->first_data_seq + rcv->count + rcv->urg_count);
         if (after(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN), (snd->first_data_seq + rcv->count + rcv->urg_count)))
         {
             //ok，更新集齐的数据区，值得一提的是add_from_skb函数一旦发现集齐了一段数据之后
@@ -486,6 +490,7 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
     else
     {
         Skbuff pakiet;
+
         pakiet.truesize = skblen;
         rcv->rmem_alloc += pakiet.truesize;
         pakiet.len = datalen;
@@ -504,12 +509,6 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
          * corresponding libnids resources can be released instead of waiting
          * for retransmissions which will never happen.  -- Sebastien Raveau
          */
-//        if (pakiet.fin)
-//        {
-//            snd->state = TCP_CLOSING;
-//            if (rcv->state == FIN_SENT || rcv->state == FIN_CONFIRMED)
-//                addFintimeout(a_tcp,timeStamp);
-//        }
         if (pakiet.fin)
         {
             snd->state = TCP_CLOSING;
@@ -579,7 +578,7 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
         {
             rcv->count_new = datalen - lost;
             rcv->count += datalen - lost;
-            notify(a_tcp, rcv,timeStamp,data,datalen);
+            notify(a_tcp, rcv,timeStamp,(data+lost),datalen-lost);
         }
     }
     if (fin)
@@ -603,27 +602,13 @@ void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u
         }
         return;
     }
-    do
+    for(auto& func:tcpdataCallback_)
     {
-        int total;
-        a_tcp->read = rcv->count - rcv->offset;
-        total=a_tcp->read;
-        for(auto& func:tcpdataCallback_)
-        {
-            if(rcv == &a_tcp->server)
-                func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
-            else
-                func(a_tcp,timeStamp,data,datalen,FROMSERVER);
-        }
-        if (a_tcp->read>total-rcv->count_new)
-            rcv->count_new=total-a_tcp->read;
-
-        if (a_tcp->read > 0)
-        {
-            rcv->offset += a_tcp->read;
-        }
+        if(rcv == &a_tcp->server)
+            func(a_tcp,timeStamp,data,datalen,FROMCLIENT);
+        else
+            func(a_tcp,timeStamp,data,datalen,FROMSERVER);
     }
-    while (a_tcp->read>0 && rcv->count_new);
 // we know that if one_loop_less!=0, we have only one callback to notify
     rcv->count_new=0;
     return;
