@@ -165,7 +165,13 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         return;
     }
 
+    LOG_DEBUG << "TCP data";
+
     auto it = table.find(t4);
+
+    if (it == table.end()) {
+        return;
+    }
 
     assert(it != table.end());
 
@@ -240,12 +246,16 @@ void Http::onTcpRst(TcpStream *stream, timeval timeStamp)
 
 void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp)
 {
+    if (stream == NULL) {
+        return;
+    }
+
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
     }
 
     if (table.erase(t4) != 1) {
-        LOG_FATAL << "HTTP: TCP timeout without connection";
+        LOG_WARN << "HTTP: TCP timeout without connection";
     }
 }

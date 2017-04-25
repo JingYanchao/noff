@@ -184,7 +184,7 @@ int main(int argc, char **argv)
         cap = new Capture(name);
     }
     else {
-        cap = new Capture(name, 65560, true, 1000);
+        cap = new Capture(name, 70000, true, 1000);
         cap->setFilter("ip");
     }
 
@@ -197,7 +197,7 @@ int main(int argc, char **argv)
         cap->startLoop(nPackets);
     }
     else {
-        Dispatcher disp(callbacks, 1024);
+        Dispatcher disp(callbacks, 65536);
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
         cap->startLoop(nPackets);

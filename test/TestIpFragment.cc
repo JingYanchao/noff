@@ -43,7 +43,8 @@ private:
     muduo::AtomicInt32 icmp_num;
 
 };
-Capture cap("eno1", 65600, true, 1000);
+//Capture cap("eno1", 65600, true, 1000);
+Capture cap("test.cap");
 protocol ptc;
 void sigHandler(int)
 {
@@ -59,7 +60,7 @@ int main()
 
     signal(SIGINT, sigHandler);
 
-    cap.setFilter("ip");
+    // cap.setFilter("ip");
 
     // customized function, count IP fragments
     IpFragment frag[nWorkers];
