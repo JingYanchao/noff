@@ -51,6 +51,8 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
         //进行回调
         for(auto& func:tcptimeoutCallback_)
         {
+            if(It->a_tcp==NULL)
+                break;
             func(It->a_tcp,timeStamp);
         }
         freeTcpstream(It->a_tcp);
@@ -61,10 +63,6 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
             break;
         //如果时间到达的话,就将tcp的数据上传
         //进行回调
-        for (auto& func:tcpcloseCallbacks_)
-        {
-            func(It->a_tcp,timeStamp);
-        }
         freeTcpstream(It->a_tcp);
     }
     return;
@@ -378,6 +376,13 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     tcpNum++;
     a_tcp.client.count = 0;
     a_tcp.server.count = 0;
+    a_tcp.read = 0;
+    a_tcp.server.rmem_alloc = 0;
+    a_tcp.client.rmem_alloc = 0;
+    a_tcp.client.ack_seq = 0;
+    a_tcp.server.ack_seq = 0;
+    a_tcp.client.urg_count = 0;
+    a_tcp.server.urg_count = 0;
     a_tcp.hash_index = hash_index;
     a_tcp.addr = addr;
     a_tcp.client.state = TCP_SYN_SENT;
@@ -450,7 +455,7 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
     if (!after(this_seq, (snd->first_data_seq + rcv->count + rcv->urg_count)))
     {
         //再判断数据长度是不是在EXP_SEQ之后，如果是，说明有新数据，否则是重发的包，无视之
-//        LOG_INFO<<(u_int)(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN))<<" "<<(u_int)(snd->first_data_seq + rcv->count + rcv->urg_count);
+//        LOG_INFO<<(u_int)(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN))<<" "<<(u_int)(snd->first_data_seq) <<" "<< rcv->count <<" "<<rcv->urg_count;
         if (after(this_seq + datalen + (this_tcphdr->th_flags & TH_FIN), (snd->first_data_seq + rcv->count + rcv->urg_count)))
         {
             //ok，更新集齐的数据区，值得一提的是add_from_skb函数一旦发现集齐了一段数据之后
@@ -472,7 +477,7 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
                     break;
                 if (after(frag->seq + frag->len + frag->fin, EXP_SEQ))
                 {
-                    LOG_INFO<<"GET CHAR";
+                    LOG_INFO<<"get char";
                     updateTcptimeout(a_tcp, timeStamp);
                     addFromskb(a_tcp, rcv, snd, (u_char *) frag->data,
                                frag->len, frag->seq, frag->fin, frag->urg,
@@ -527,9 +532,15 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
             }
             It++;
         }
+        if(It == rcv->fraglist.begin())
+        {
+            rcv->fraglist.push_front(pakiet);
+            return;
+        }
         if(It!=rcv->fraglist.end())
             It--;
-        rcv->fraglist.insert(It,pakiet);
+        else
+            rcv->fraglist.insert(It,pakiet);
     }
 }
 
@@ -555,7 +566,7 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
         {
             rcv->count_new = to_copy;
             rcv->count += to_copy;
-            notify(a_tcp, rcv,timeStamp,data,datalen);
+            notify(a_tcp, rcv,timeStamp,data+lost,to_copy);
         }
         rcv->urgdata = data[rcv->urg_ptr - this_seq];
         rcv->count_new_urg = 1;
@@ -568,7 +579,7 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
         {
             rcv->count_new = to_copy2;
             rcv->count += to_copy2;
-            notify(a_tcp, rcv,timeStamp,data,datalen);
+            notify(a_tcp, rcv,timeStamp,(data + lost + to_copy + 1),to_copy2);
         }
     }
     else
@@ -591,6 +602,8 @@ void TcpFragment::addFromskb(TcpStream *a_tcp, HalfStream *rcv, HalfStream *snd,
 
 void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u_char* data,int datalen)
 {
+    if(a_tcp==NULL)
+        return;
     if (rcv->count_new_urg)
     {
         for(auto& func:tcpdataCallback_)
