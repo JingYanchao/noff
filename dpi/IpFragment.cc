@@ -59,12 +59,10 @@ void IpFragment::startIpfragProc(ip *data, int len, timeval timeStamp)
     int need_free = 0;
     int skblen;
 
-    int static x = 0;
     if (len < (int)sizeof(struct ip) || iph->ip_hl < 5 || iph->ip_v != 4 ||
         len < ntohs(iph->ip_len) || ntohs(iph->ip_len) < iph->ip_hl << 2)
     {
-        ++x;
-        LOG_DEBUG<<"ip data is invalid:"<<iph->ip_id;
+        LOG_ERROR<<"ip data is invalid:"<<iph->ip_id;
         return;
     }
 

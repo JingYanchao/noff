@@ -44,7 +44,10 @@ int Http::onHeaderValue(HttpParser *parser, const char *data, size_t len)
             HttpRequest *request = http->currentHttpRequest;
             std::string &headerField = request->currentHeaderField;
 
-            assert(!headerField.empty());
+            if (headerField.empty()) {
+                LOG_ERROR << "HTTP: onHeaderValue, no field before";
+                return 1;
+            }
 
             request->headers[headerField].assign(data, len);
         }
@@ -55,7 +58,10 @@ int Http::onHeaderValue(HttpParser *parser, const char *data, size_t len)
             HttpResponse *response = http->currentHttpResponse;
             std::string &headerField = response->currentHeaderField;
 
-            assert(!headerField.empty());
+            if (headerField.empty()) {
+                LOG_ERROR << "HTTP: onHeaderValue, no field before";
+                return 1;
+            }
 
             response->headers[headerField].assign(data, len);
         }
@@ -145,6 +151,8 @@ http_parser_settings Http::settings = {
 
 void Http::onTcpConnection(TcpStream *stream, timeval timeStamp)
 {
+    assert(stream != NULL);
+
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
@@ -160,6 +168,8 @@ void Http::onTcpConnection(TcpStream *stream, timeval timeStamp)
 
 void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
+    assert(stream != NULL);
+
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
@@ -168,6 +178,7 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
     auto it = table.find(t4);
 
     if (it == table.end()) {
+        LOG_ERROR << "HTTP: TCP data without connection";
         return;
     }
 
@@ -191,9 +202,9 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         );
 
         if (parser->http_errno != 0) {
-            LOG_WARN << "HTTP request: "
-                     << http_errno_name(HTTP_PARSER_ERRNO(parser));
-            table.erase(it);
+            LOG_DEBUG << "HTTP request: "
+                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
+            // table.erase(it);
         }
     }
 
@@ -210,9 +221,9 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         );
 
         if (parser->http_errno != 0) {
-            LOG_WARN << "HTTP response: "
+            LOG_DEBUG << "HTTP response: "
                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
-            table.erase(it);
+            // table.erase(it);
         }
     }
     else {
@@ -222,18 +233,22 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
 
 void Http::onTcpClose(TcpStream *stream, timeval timeStamp)
 {
+    assert(stream != NULL);
+
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
     }
 
     if (table.erase(t4) != 1) {
-        LOG_WARN << "HTTP: TCP close without connection";
+        LOG_ERROR << "HTTP: TCP close without connection";
     }
 }
 
 void Http::onTcpRst(TcpStream *stream, timeval timeStamp)
 {
+    assert(stream != NULL);
+
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
         return;
@@ -243,9 +258,7 @@ void Http::onTcpRst(TcpStream *stream, timeval timeStamp)
 
 void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp)
 {
-    if (stream == NULL) {
-        return;
-    }
+    assert(stream != NULL);
 
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
@@ -253,6 +266,6 @@ void Http::onTcpTimeout(TcpStream *stream, timeval timeStamp)
     }
 
     if (table.erase(t4) != 1) {
-        LOG_WARN << "HTTP: TCP timeout without connection";
+        LOG_ERROR << "HTTP: TCP timeout without connection";
     }
 }
