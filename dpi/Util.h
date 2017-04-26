@@ -6,6 +6,8 @@
 #define NOFF_UTIL_H
 
 #include <string>
+#include <arpa/inet.h>
+#include <muduo/base/Logging.h>
 
 const int FROMCLIENT = 0;
 const int FROMSERVER = 1;
@@ -29,6 +31,31 @@ struct tuple4
                dest == rhs.dest &&
                saddr == rhs.saddr &&
                daddr == rhs.daddr;
+    }
+
+    std::string toString()
+    {
+        std::string str;
+
+        char buf[INET_ADDRSTRLEN];
+
+        if (inet_ntop(AF_INET, &saddr, buf, INET_ADDRSTRLEN) == NULL) {
+            LOG_FATAL << "bad IP address";
+        }
+
+        str += buf;
+        str += ":";
+        str += std::to_string(source) + " -> ";
+
+        if (inet_ntop(AF_INET, &daddr, buf, INET_ADDRSTRLEN) == NULL) {
+            LOG_FATAL << "bad IP address";
+        }
+
+        str += buf;
+        str += ":";
+        str += std::to_string(dest);
+
+        return str;
     }
 };
 

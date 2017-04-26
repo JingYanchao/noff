@@ -47,7 +47,7 @@ int main()
 
         cap = new Capture("test.pcap");
 
-        cap->setFilter("ip");
+        // cap->setFilter("ip");
 
         cap->addIpFragmentCallback(std::bind(
                 &IpFragmentCounter::onMessage, &ipCounter, _1, _2, _3));

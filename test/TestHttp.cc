@@ -13,6 +13,7 @@
 #include <muduo/base/Logging.h>
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
+#include <muduo/base/Atomic.h>
 #include <signal.h>
 
 #include "Capture.h"
@@ -71,8 +72,12 @@ muduo::string toString(timeval timeStamp)
 
 muduo::MutexLock mut;
 
+
+muduo::AtomicInt32 requestCounter;
 void onHttpRequest(HttpRequest *req)
 {
+    requestCounter.add(1);
+
     ostringstream   is;
 
     is << "\t" << "HTTP Request\n"
@@ -86,12 +91,15 @@ void onHttpRequest(HttpRequest *req)
     }
 
     muduo::MutexLockGuard guard(mut);
-    LOG_DEBUG << "";
-    cout << is.str();
+    // LOG_DEBUG << " new HTTP Request ";
+    //cout << is.str();
 }
 
+muduo::AtomicInt32 responseCounter;
 void onHttpResponse(HttpResponse *rep)
 {
+    responseCounter.add(1);
+
     string          str;
     ostringstream   is(str);
 
@@ -106,8 +114,8 @@ void onHttpResponse(HttpResponse *rep)
     }
 
     muduo::MutexLockGuard guard(mut);
-    LOG_DEBUG << "";
-    cout << is.str();
+    // LOG_DEBUG << " new HTTP response ";;
+    // cout << is.str();
 }
 
 int main(int argc, char **argv)
@@ -118,7 +126,7 @@ int main(int argc, char **argv)
     bool    fileCapture = false;
     bool    singleThread = false;
 
-    muduo::Logger::setLogLevel(muduo::Logger::DEBUG);
+    muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
     while ( (opt = getopt(argc, argv, "f:i:c:t:")) != -1) {
         switch (opt) {
@@ -184,7 +192,7 @@ int main(int argc, char **argv)
         cap = new Capture(name);
     }
     else {
-        cap = new Capture(name, 65560, true, 1000);
+        cap = new Capture(name, 70000, true, 1000);
         cap->setFilter("ip");
     }
 
@@ -197,9 +205,12 @@ int main(int argc, char **argv)
         cap->startLoop(nPackets);
     }
     else {
-        Dispatcher disp(callbacks, 1024);
+        Dispatcher disp(callbacks, 65536);
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
         cap->startLoop(nPackets);
     }
+
+    LOG_INFO << "http request " << requestCounter.get();
+    LOG_INFO << "http response " << responseCounter.get();
 }

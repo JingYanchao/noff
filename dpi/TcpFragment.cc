@@ -8,7 +8,7 @@
 TcpFragment::TcpFragment()
 {
     LOG_INFO<<"start tcpfragment";
-    int num_tcp_stream = 30001;
+    int num_tcp_stream = 300001;
     tcpInit(num_tcp_stream);
 }
 TcpFragment::~TcpFragment()
@@ -27,6 +27,7 @@ int TcpFragment::tcpInit(int size)
     tcpTimeoutSet_.clear();
     return 0;
 }
+
 void TcpFragment::tcpExit(void)
 {
     if(tcphashmap_.empty())
@@ -39,26 +40,61 @@ void TcpFragment::tcpExit(void)
     finTimeoutSet_.clear();
     tcpTimeoutSet_.clear();
 }
+
 void TcpFragment::tcpChecktimeouts(timeval timeStamp)
 {
-    for (auto It = tcpTimeoutSet_.begin();It!=tcpTimeoutSet_.end();It++)
+    while (!tcpTimeoutSet_.empty()) {
+
+        auto it = tcpTimeoutSet_.begin();
+
+        if (timeStamp.tv_sec < it->time.tv_sec) {
+            break;
+        }
+
+        // TODO: neccesarry?
+        if (it->a_tcp->isconnnection == 1) {
+            for (auto &func : tcptimeoutCallback_) {
+                assert(it->a_tcp != NULL);
+                func(it->a_tcp, timeStamp);
+            }
+        }
+        freeTcpstream(it->a_tcp);
+    }
+
+    while (!finTimeoutSet_.empty()) {
+
+        auto it = finTimeoutSet_.begin();
+
+        if (timeStamp.tv_sec < it->time.tv_sec) {
+            break;
+        }
+        // time out
+        for (auto &func : tcpcloseCallbacks_) {
+            assert(it->a_tcp != NULL);
+            func(it->a_tcp, timeStamp);
+        }
+        freeTcpstream(it->a_tcp);
+    }
+
+    /*
+    for (auto It = tcpTimeoutSet_.begin(); It!=tcpTimeoutSet_.end(); It++)
     {
         if (timeStamp.tv_sec < It->time.tv_sec)
             break;
+
 //        如果时间到达的话,就将tcp的数据上传
-        if(It->a_tcp->isconnnection==1)
+        if(It->a_tcp->isconnnection == 1)
         {
             for(auto& func:tcptimeoutCallback_)
             {
                 if(It->a_tcp==NULL)
                     break;
-                func(It->a_tcp,timeStamp);
+                func(It->a_tcp, timeStamp);
             }
         }
-
         freeTcpstream(It->a_tcp);
-
     }
+
     for (auto It = finTimeoutSet_.begin();It!= finTimeoutSet_.end();It++)
     {
         if (timeStamp.tv_sec < It->time.tv_sec)
@@ -67,13 +103,14 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
         //进行回调
         freeTcpstream(It->a_tcp);
     }
+     */
     return;
 }
 
 void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
 {
-
     tcpChecktimeouts(timeStamp);
+
     ip* this_iphdr = data;
     tcphdr *this_tcphdr = (tcphdr *)((u_char*)data + 4 * this_iphdr->ip_hl);
     int datalen,iplen;
@@ -103,15 +140,17 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
 
 
     //在哈希表里找找，如果没有此tcp会话则看看是不是要新建一个
-    if (!(a_tcp = findStream(this_tcphdr, this_iphdr, &from_client)))
+    if ((a_tcp = findStream(this_tcphdr, this_iphdr, &from_client)) == NULL)
     {
         /*是三次握手的第一个包*/
         /*tcp里流不存在时:且tcp数据包里的(syn=1 && ack==0 && rst==0)时,添加一条tcp流*/
         /*tcp第一次握手*/
         if ((this_tcphdr->th_flags & TH_SYN) &&
             !(this_tcphdr->th_flags & TH_ACK) &&
-            !(this_tcphdr->th_flags & TH_RST))
-            addNewtcp(this_tcphdr, this_iphdr,timeStamp);//发现新的TCP流，进行添加。
+            !(this_tcphdr->th_flags & TH_RST)) {
+
+            addNewtcp(this_tcphdr, this_iphdr, timeStamp);//发现新的TCP流，进行添加。
+        }
         /*第一次握手完毕返回*/
         return;
     }
@@ -403,7 +442,7 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     a_tcp.server.state = TCP_CLOSE;
     a_tcp.ts = timeStamp.tv_sec;
     tcphashmap_.insert(std::make_pair(hash_index,a_tcp));
-//    LOG_INFO<<"the hashsize:"<<tcphashmap_.size();
+    LOG_INFO<<"the hashsize:"<<tcphashmap_.size();
 
     tuple4 this_addr;
     this_addr.source = ntohs(this_tcphdr->th_sport);
@@ -643,7 +682,7 @@ void TcpFragment::notify(TcpStream * a_tcp, HalfStream * rcv,timeval timeStamp,u
                 func(a_tcp, timeStamp, data, datalen, FROMSERVER);
         }
     }
-// we know that if one_loop_less!=0, we have only one callback to notify
+    // we know that if one_loop_less!=0, we have only one callback to notify
     rcv->count_new=0;
     return;
 }
@@ -653,7 +692,7 @@ void TcpFragment::addTcptimeout(TcpStream *a_tcp,timeval timeStamp)
     Timeout temp;
     temp.a_tcp = a_tcp;
     temp.time = timeStamp;
-    temp.time.tv_sec+=20;
+    temp.time.tv_sec += 60;
     tcpTimeoutSet_.insert(std::move(temp));
 }
 

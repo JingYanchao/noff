@@ -76,11 +76,11 @@ struct Timeout
 {
     TcpStream *a_tcp;
     timeval time;
-    bool operator<(Timeout b) const
+    bool operator<(const Timeout& b) const
     {
         return time.tv_sec< b.time.tv_sec;
     }
-    bool operator==(Timeout b) const
+    bool operator==(const Timeout& b) const
     {
         return a_tcp == b.a_tcp;
     }
