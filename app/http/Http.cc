@@ -165,8 +165,6 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         return;
     }
 
-    LOG_DEBUG << "TCP data";
-
     auto it = table.find(t4);
 
     if (it == table.end()) {
@@ -195,7 +193,7 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         if (parser->http_errno != 0) {
             LOG_WARN << "HTTP request: "
                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
-            //table.erase(it);
+            table.erase(it);
         }
     }
 
@@ -214,7 +212,7 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         if (parser->http_errno != 0) {
             LOG_WARN << "HTTP response: "
                      << http_errno_name(HTTP_PARSER_ERRNO(parser));
-            //table.erase(it);
+            table.erase(it);
         }
     }
     else {
@@ -229,9 +227,8 @@ void Http::onTcpClose(TcpStream *stream, timeval timeStamp)
         return;
     }
 
-
     if (table.erase(t4) != 1) {
-        LOG_FATAL << "HTTP: TCP close without connection";
+        LOG_WARN << "HTTP: TCP close without connection";
     }
 }
 
