@@ -68,7 +68,7 @@ struct TcpStream
     tuple4 addr;
     HalfStream client;
     HalfStream server;
-    int read;
+    int isconnnection;
     long ts;
 };
 
