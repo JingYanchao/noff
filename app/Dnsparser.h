@@ -5,11 +5,12 @@
 #ifndef DNSPARSER_DNSPARSER_H
 #define DNSPARSER_DNSPARSER_H
 
-#include "../../dpi/Util.h"
+#include "dpi/Util.h"
 #include <stdlib.h>
 #include <list>
 #include <functional>
 #include <vector>
+
 struct DnsQuestion
 {
     char * name;

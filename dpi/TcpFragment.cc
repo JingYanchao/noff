@@ -442,7 +442,7 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     a_tcp.server.state = TCP_CLOSE;
     a_tcp.ts = timeStamp.tv_sec;
     tcphashmap_.insert(std::make_pair(hash_index,a_tcp));
-    LOG_INFO<<"the hashsize:"<<tcphashmap_.size();
+    // LOG_INFO<<"the hashsize:"<<tcphashmap_.size();
 
     tuple4 this_addr;
     this_addr.source = ntohs(this_tcphdr->th_sport);
@@ -710,7 +710,6 @@ void TcpFragment::delTcptimeout(TcpStream *a_tcp)
             ++It;
         }
     }
-
 }
 
 void TcpFragment::addFintimeout(TcpStream *a_tcp,timeval timeStamp)

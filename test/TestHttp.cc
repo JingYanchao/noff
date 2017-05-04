@@ -9,12 +9,13 @@
 #include <sstream>
 #include <iostream>
 #include <arpa/inet.h>
+#include <signal.h>
 
 #include <muduo/base/Logging.h>
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
 #include <muduo/base/Atomic.h>
-#include <signal.h>
+
 
 #include "Capture.h"
 #include "Dispatcher.h"
@@ -73,14 +74,14 @@ muduo::string toString(timeval timeStamp)
 muduo::MutexLock mut;
 
 
-muduo::AtomicInt32 requestCounter;
+muduo::AtomicInt32 httpRequestCounter;
 void onHttpRequest(HttpRequest *req)
 {
-    requestCounter.add(1);
+    httpRequestCounter.add(1);
 
     ostringstream   is;
 
-    is << "\t" << "HTTP Request\n"
+    is << "HTTP Request\n"
        << "\t" << toString(req->timeStamp) << "\n"
        << "\t" << toString(req->t4) << "\n"
        << "\t" << req->method << " " << req->url << "\n";
@@ -91,22 +92,23 @@ void onHttpRequest(HttpRequest *req)
     }
 
     muduo::MutexLockGuard guard(mut);
-    // LOG_DEBUG << " new HTTP Request ";
-    //cout << is.str();
+    LOG_DEBUG << " new HTTP Request ";
+    cout << is.str();
 }
 
-muduo::AtomicInt32 responseCounter;
+muduo::AtomicInt32 httpResponseCounter;
 void onHttpResponse(HttpResponse *rep)
 {
-    responseCounter.add(1);
+    httpResponseCounter.add(1);
 
     string          str;
     ostringstream   is(str);
 
-    is << "\t" << "HTTP Response\n"
+    is << "HTTP Response\n"
        << "\t" << toString(rep->timeStamp) << "\n"
        << "\t" << toString(rep->t4) << "\n"
-       << "\t" << rep->statusCode << "\n";
+       << "\t" << rep->statusCode << " " <<
+       rep->status << "\n";
 
     for (auto& header:rep->headers) {
         is << "\t" << header.first << ": "
@@ -114,8 +116,8 @@ void onHttpResponse(HttpResponse *rep)
     }
 
     muduo::MutexLockGuard guard(mut);
-    // LOG_DEBUG << " new HTTP response ";;
-    // cout << is.str();
+    LOG_DEBUG << " new HTTP response ";;
+    cout << is.str();
 }
 
 int main(int argc, char **argv)
@@ -211,6 +213,6 @@ int main(int argc, char **argv)
         cap->startLoop(nPackets);
     }
 
-    LOG_INFO << "http request " << requestCounter.get();
-    LOG_INFO << "http response " << responseCounter.get();
+    LOG_INFO << "http request " << httpRequestCounter.get();
+    LOG_INFO << "http response " << httpResponseCounter.get();
 }

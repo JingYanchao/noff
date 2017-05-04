@@ -9,7 +9,7 @@
 #include "../dpi/IpFragment.h"
 #include "../dpi/TcpFragment.h"
 #include "../dpi/Udp.h"
-#include "../app/dns/Dnsparser.h"
+#include "app/Dnsparser.h"
 
 #include <signal.h>
 
