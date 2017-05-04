@@ -6,4 +6,4 @@ build
 bin
 CMakeLists.txt
 cloc-1.72.pl
-rapidjson
+/rapidjson/
