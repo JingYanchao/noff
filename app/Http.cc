@@ -93,7 +93,8 @@ int Http::onStatus(HttpParser *parser, const char *data, size_t len)
 
     assert(parser->type == HTTP_RESPONSE);
 
-    response->statusCode.assign(data, len);
+    response->statusCode = parser->status_code;
+    response->status.assign(data, len);
 
     return 0;
 }
@@ -227,7 +228,7 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
         }
     }
     else {
-        LOG_FATAL << "Http: unknow flag";
+        LOG_FATAL << "Http: unknown flag";
     }
 }
 

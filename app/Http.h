@@ -2,6 +2,9 @@
 // Created by root on 17-4-17.
 //
 
+#ifndef NOFF_HTTP_H
+#define NOFF_HTTP_H
+
 #include <unordered_map>
 #include <functional>
 #include <string>
@@ -14,9 +17,6 @@
 #include "dpi/Util.h"
 
 #include "HttpParser.h"
-
-#ifndef NOFF_HTTP_H
-#define NOFF_HTTP_H
 
 struct HttpRequest
 {
@@ -39,7 +39,8 @@ struct HttpRequest
 struct HttpResponse
 {
     tuple4          t4;
-    std::string     statusCode;
+    std::string     status;
+    int             statusCode;
 
     std::unordered_map<std::string, std::string>
                     headers;
