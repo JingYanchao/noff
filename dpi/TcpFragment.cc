@@ -7,7 +7,7 @@
 #include <muduo/base/Logging.h>
 TcpFragment::TcpFragment()
 {
-    LOG_INFO<<"start tcpfragment";
+    LOG_INFO << "TcpFragment: started";
     int num_tcp_stream = 300001;
     tcpInit(num_tcp_stream);
 }

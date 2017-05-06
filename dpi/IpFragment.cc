@@ -735,10 +735,8 @@ void IpFragment::rmthisHost()
 ipq* IpFragment::ipFind(struct ip *iph)
 {
     struct ipq *qp;
-    struct ipq *qplast;
 
-    qplast = NULL;
-    for (qp = this_host->ipqueue; qp != NULL; qplast = qp, qp = qp->next)
+    for (qp = this_host->ipqueue; qp != NULL; qp = qp->next)
     {
         if (iph->ip_id == qp->iph->ip_id &&
             iph->ip_src.s_addr == qp->iph->ip_src.s_addr &&
