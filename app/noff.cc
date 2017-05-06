@@ -22,8 +22,7 @@
 #include "IpFragment.h"
 #include "TcpFragment.h"
 #include "Http.h"
-
-#include "rapidjson/document.h"
+#include "UdpClient.h"
 
 using namespace std;
 
@@ -35,49 +34,6 @@ using std::placeholders::_5;
 
 Capture *cap;
 
-struct NoffParam
-{
-    // capture
-    const char  *interface = "lo";
-
-    // output
-    const char *output = "stdout";
-
-    // dispacher
-    bool multithread = true;
-    int workers = 4;
-    int queue = 65536;
-
-};
-
-#define CHECK_JSON(exp, str) \
-do  { \
-    if (!exp) { \
-        LOG_ERROR << "Parse: " << str; \
-        exit(1); \
-    } \
-} while(0)
-
-NoffParam parseParam(const char *json)
-{
-    NoffParam param;
-
-    rapidjson::Document doc;
-    doc.Parse(json);
-
-    param.interface = doc["interface"].GetString();
-    param.output = doc["output"].GetString();
-    param.workers = doc["workers"].GetInt();
-    param.queue = doc["queue"].GetInt();
-    param.multithread = doc["multithread"].GetBool();
-
-    if (!param.multithread) {
-        param.workers = 1;
-    }
-
-    return param;
-}
-
 void sigHandler(int)
 {
     assert(cap != NULL);
@@ -86,42 +42,54 @@ void sigHandler(int)
 
 int main(int argc, char **argv)
 {
+    int     opt;
+    char    name[32] = "any";
+    int     nPackets = 0, nWorkers = 1;
+    bool    fileCapture = false;
+    bool    singleThread = false;
+    uint16_t  port = 9877;
+
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
-    const char *fileName;
-    FILE *file;
-    char json[102400];
-
-    if (argc != 2) {
-        LOG_ERROR << "usage: noff filename";
-        exit(1);
+    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1) {
+        switch (opt) {
+            case 'f':
+                fileCapture = true;
+                /* fall through */
+            case 'i':
+                if (strlen(optarg) >= 31) {
+                    LOG_ERROR << "device name too long";
+                }
+                strcpy(name, optarg);
+                break;
+            case 'c':
+                nPackets = atoi(optarg);
+                break;
+            case 't':
+                nWorkers = atoi(optarg);
+                if (nWorkers <= 0) {
+                    nWorkers = 1;
+                    singleThread = true;
+                }
+                break;
+            case 'p':
+                port = (uint16_t)atoi(optarg);
+                break;
+            default:
+                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-p port]";
+                exit(1);
+        }
     }
 
-    if (strlen(argv[1]) >= 31) {
-        LOG_ERROR << "file name too long";
-        exit(1);
-    }
+    std::vector<IpFragment>  ip(nWorkers);
+    std::vector<TcpFragment> tcp(nWorkers);
+    std::vector<Http>        http(nWorkers);
 
-    fileName = argv[1];
-
-    file = fopen(fileName, "r");
-    if (file == NULL) {
-        LOG_ERROR << "file not exists";
-        exit(1);
-    }
-
-    size_t len = fread(json, 1, sizeof(json), file);
-    json[len] = '\0';
-
-    NoffParam param = parseParam(json);
-
-    std::vector<IpFragment>  ip(param.workers);
-    std::vector<TcpFragment> tcp(param.workers);
-    std::vector<Http>        http(param.workers);
+    UdpClient                httpClient({"127.0.0.1", port});
 
     std::vector<Dispatcher::IpFragmentCallback> callbacks;
 
-    for (int i = 0; i < param.workers; ++i) {
+    for (int i = 0; i < nWorkers; ++i) {
 
         callbacks.push_back(bind(
                 &IpFragment::startIpfragProc, &ip[i], _1, _2, _3));
@@ -144,27 +112,32 @@ int main(int argc, char **argv)
         tcp[i].addTcptimeoutCallback(bind(
                 &Http::onTcpTimeout, &http[i], _1, _2));
 
-
-        // http[i].addHttpRequestCallback(onHttpRequest);
-        // http[i].addHttpResponseCallback(onHttpResponse);
+        http[i].addHttpRequestCallback(bind(
+                &UdpClient::onHttpRequest, &httpClient, _1));
+        http[i].addHttpResponseCallback(bind(
+                &UdpClient::onHttpResponse, &httpClient, _1));
     }
 
-    cap = new Capture(param.interface, 70000, true, 1000);
-    cap->setFilter("ip");
-
+    if (fileCapture) {
+        cap = new Capture(name);
+    }
+    else {
+        cap = new Capture(name, 70000, true, 1000);
+        cap->setFilter("ip");
+    }
 
     signal(SIGINT, sigHandler);
 
-    if (!param.multithread) {
+    if (singleThread) {
         for (auto& cb : callbacks) {
             cap->addIpFragmentCallback(cb);
         }
-        cap->startLoop(0);
+        cap->startLoop(nPackets);
     }
     else {
-        Dispatcher disp(callbacks, param.queue);
+        Dispatcher disp(callbacks, 65536);
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
-        cap->startLoop(0);
+        cap->startLoop(nPackets);
     }
 }
