@@ -16,6 +16,10 @@ int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
         {
             HttpRequest *request = http->currentHttpRequest;
             request->currentHeaderField.assign(data, len);
+            for (char& c : request->currentHeaderField) {
+                c = tolower(c);
+            }
+            request->bytes += len;
         }
             break;
 
@@ -23,6 +27,10 @@ int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
         {
             HttpResponse *response = http->currentHttpResponse;
             response->currentHeaderField.assign(data, len);
+            for (char& c : response->currentHeaderField) {
+                c = tolower(c);
+            }
+            response->bytes += len;
         }
             break;
 
@@ -50,6 +58,7 @@ int Http::onHeaderValue(HttpParser *parser, const char *data, size_t len)
             }
 
             request->headers[headerField].assign(data, len);
+            request->bytes += len;
         }
             break;
 
@@ -64,6 +73,7 @@ int Http::onHeaderValue(HttpParser *parser, const char *data, size_t len)
             }
 
             response->headers[headerField].assign(data, len);
+            response->bytes += len;
         }
             break;
 
@@ -82,6 +92,7 @@ int Http::onUrl(HttpParser *parser, const char *data, size_t len)
     assert(parser->type == HTTP_REQUEST);
 
     request->url.assign(data, len);
+    request->bytes += len;
 
     return 0;
 }
@@ -95,6 +106,7 @@ int Http::onStatus(HttpParser *parser, const char *data, size_t len)
 
     response->statusCode = parser->status_code;
     response->status.assign(data, len);
+    response->bytes += len;
 
     return 0;
 }
@@ -115,6 +127,7 @@ int Http::onHeadersComplete(HttpParser *parser)
                 func(request);
             }
             request->headers.clear();
+            request->bytes = 0;
         }
             break;
 
@@ -126,6 +139,7 @@ int Http::onHeadersComplete(HttpParser *parser)
                 func(response);
             }
             response->headers.clear();
+            response->bytes = 0;
         }
             break;
 

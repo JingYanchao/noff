@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <muduo/base/noncopyable.h>
+#include <muduo/net/InetAddress.h>
 
 #include "dpi/Sharding.h"
 #include "dpi/TcpFragment.h"
@@ -21,36 +22,52 @@
 struct HttpRequest
 {
     tuple4          t4;
+    muduo::net::InetAddress srcAddr;
+    muduo::net::InetAddress dstAddr;
+
     std::string     method;
     std::string     url;
 
     std::unordered_map<std::string, std::string>
                     headers;
 
+    int bytes = 0;
+
     std::string     currentHeaderField;
 
     timeval         timeStamp;
 
     HttpRequest(tuple4 t4_, timeval timeStamp_):
-            t4(t4_), timeStamp(timeStamp_)
+            t4(t4_),
+            srcAddr(t4.toSrcInetAddress()),
+            dstAddr(t4.toDstInetAddress()),
+            timeStamp(timeStamp_)
     {}
 };
 
 struct HttpResponse
 {
     tuple4          t4;
+    muduo::net::InetAddress srcAddr;
+    muduo::net::InetAddress dstAddr;
+
     std::string     status;
     int             statusCode;
 
     std::unordered_map<std::string, std::string>
                     headers;
 
+    int bytes = 0;
+
     std::string     currentHeaderField;
 
     timeval         timeStamp;
 
     HttpResponse(tuple4 t4_, timeval timeStamp_):
-            t4(t4_), timeStamp(timeStamp_)
+            t4(t4_),
+            srcAddr(t4.toSrcInetAddress()),
+            dstAddr(t4.toDstInetAddress()),
+            timeStamp(timeStamp_)
     {}
 };
 
@@ -83,8 +100,8 @@ private:
     {
         HttpRequest     requestData;
         HttpResponse    responseData;
-        HttpParser     requestParser;
-        HttpParser     responseParser;
+        HttpParser      requestParser;
+        HttpParser      responseParser;
 
         HttpDetail(tuple4 t4, timeval timpStamp, Http *h):
                 requestData(t4, timpStamp),
