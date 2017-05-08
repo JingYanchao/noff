@@ -27,6 +27,7 @@
 #include "Http.h"
 #include "UdpClient.h"
 #include "ProtocolPacketCounter.h"
+#include "TestCounter.h"
 
 using namespace std;
 
@@ -40,6 +41,7 @@ unique_ptr<Capture>     cap = NULL;
 unique_ptr<UdpClient>   httpRequestOutput = NULL;
 unique_ptr<UdpClient>   httpResponseOutput = NULL;
 unique_ptr<UdpClient>   packetCounterOutput = NULL;
+unique_ptr<UdpClient>   tcpCounterOutput = NULL;
 
 void sigHandler(int)
 {
@@ -98,8 +100,8 @@ void setPacketCounterInThread()
     auto& counter = globalInstance(ProtocolPacketCounter);
 
     // tcp->packet counter
-    tcp.addDataCallback(bind(
-            &ProtocolPacketCounter::onTcp, &counter, _1, _2));
+     tcp.addDataCallback(bind(
+            &ProtocolPacketCounter::onTcpData, &counter, _1, _2));
 
     // packet->udp output
     counter.setCounterCallback(bind(
@@ -145,6 +147,7 @@ int main(int argc, char **argv)
             case 'i':
                 if (strlen(optarg) >= 31) {
                     LOG_ERROR << "device name too long";
+                    exit(1);
                 }
                 strcpy(name, optarg);
                 break;
@@ -170,6 +173,7 @@ int main(int argc, char **argv)
     httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}));
     httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}));
     packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    tcpCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
 
     if (fileCapture) {
         cap.reset(new Capture(name));

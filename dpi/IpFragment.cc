@@ -2,6 +2,8 @@
 // Created by jyc on 17-4-14.
 //
 #include "IpFragment.h"
+#include "TestCounter.h"
+
 #include <muduo/base/Logging.h>
 #include <sys/types.h>
 #include <sys/time.h>
@@ -103,6 +105,7 @@ void IpFragment::genIpProc(u_char *data, int skblen,timeval timeStamp)
             {
                 func(this_iphdr, skblen,timeStamp);
             }
+            SimpleCounter<2501>(timeStamp,  "ip -> tcp");
             break;
         }
         case IPPROTO_UDP:

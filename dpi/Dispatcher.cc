@@ -39,6 +39,7 @@ Dispatcher::Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback
         workers_[i]->setMaxQueueSize(queueSize_);
         workers_[i]->start(1);
     }
+
     LOG_INFO << "Dispatcher: started, " << nWorkers_ << " workers";
 }
 
@@ -76,7 +77,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 
     auto& worker = *workers_[index];
 
-    if (worker.queueSize() >= queueSize_ - 10) {
+    if (worker.queueSize() >= queueSize_) {
         LOG_WARN << "Dispatcher: " << worker.name() << " overloaded";
         return;
     }
@@ -92,11 +93,8 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
     worker.run([=](){
         auto& ip = muduo::ThreadLocalSingleton<IpFragment>::instance();
         ip.startIpfragProc(copiedIpFragment, len, timeStamp);
-    });
-    ++taskCounter_[index];
-
-    // after task is complete, free pointer
-    worker.run([=]() {
         free(copiedIpFragment);
     });
+
+    ++taskCounter_[index];
 }

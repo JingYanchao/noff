@@ -35,7 +35,7 @@ public:
 
     typedef std::function<void(const CounterDetail&)> CounterCallback;
 
-    void onTcp(TcpStream *stream, timeval timeStamp);
+    void onTcpData(TcpStream *stream, timeval timeStamp);
 
     void setCounterCallback(const CounterCallback& cb)
     {

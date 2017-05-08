@@ -123,14 +123,14 @@ public:
 
     void processTcp(ip *,int,timeval);
 private:
-    std::vector<TcpCallback>        tcpcloseCallbacks_;
-    std::vector<TcpCallback>        tcptimeoutCallback_;
-    std::vector<TcpCallback>        tcprstCallback_;
-    std::vector<TcpCallback>        tcpconnectionCallback_;
-    std::vector<DataCallback>        tcpdataCallback_;
-    std::set<Timeout>               finTimeoutSet_;
-    std::set<Timeout>               tcpTimeoutSet_;
-    std::unordered_map<int,TcpStream>   tcphashmap_;
+    std::vector<TcpCallback>            tcpcloseCallbacks_;
+    std::vector<TcpCallback>            tcptimeoutCallback_;
+    std::vector<TcpCallback>            tcprstCallback_;
+    std::vector<TcpCallback>            tcpconnectionCallback_;
+    std::vector<DataCallback>           tcpdataCallback_;
+    std::set<Timeout>                   finTimeoutSet_;
+    std::set<Timeout>                   tcpTimeoutSet_;
+    std::unordered_multimap<int, TcpStream>   tcphashmap_;
     Hash hash;
     size_t tcpStreamTableSize_;
     size_t tcpNum = 0;
