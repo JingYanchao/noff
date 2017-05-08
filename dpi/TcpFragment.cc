@@ -154,6 +154,11 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
         /*第一次握手完毕返回*/
         return;
     }
+    else
+    {
+        freeTcpstream(a_tcp);
+        addNewtcp(this_tcphdr, this_iphdr, timeStamp);
+    }
     if (from_client)
     {
         snd = &a_tcp->client;
