@@ -193,10 +193,10 @@ int main(int argc, char **argv)
     }
     else {
 
-        Dispatcher disp(nWorkers, threadQueSize, initInThread);
+        Dispatcher disp(nWorkers, threadQueSize, &initInThread);
 
         cap->addIpFragmentCallback(std::bind(
-                &Dispatcher::onIpFragment, disp, _1, _2, _3));
+                &Dispatcher::onIpFragment, &disp, _1, _2, _3));
 
         cap->startLoop(nPackets);
     }
