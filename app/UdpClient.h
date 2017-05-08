@@ -13,7 +13,7 @@
 
 #include "Http.h"
 
-class UdpClient:public muduo::noncopyable
+class UdpClient : muduo::noncopyable
 {
 public:
     UdpClient(const muduo::net::InetAddress& srvaddr);

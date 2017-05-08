@@ -15,6 +15,7 @@
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
 #include <muduo/base/Atomic.h>
+#include <muduo/base/ThreadLocalSingleton.h>
 
 
 #include "Capture.h"
@@ -32,7 +33,9 @@ using std::placeholders::_3;
 using std::placeholders::_4;
 using std::placeholders::_5;
 
-Capture *cap;
+Capture *cap = NULL;
+
+UdpClient *httpClient = NULL;
 
 void sigHandler(int)
 {
@@ -40,11 +43,50 @@ void sigHandler(int)
     cap->breakLoop();
 }
 
+#define instance(Type) \
+muduo::ThreadLocalSingleton<Type>::instance()
+
+void threadFunc()
+{
+    assert(cap != NULL);
+    assert(httpClient != NULL);
+
+    auto& ip = instance(IpFragment);
+    auto& tcp = instance(TcpFragment);
+    auto& http = instance(Http);
+
+    ip.addTcpCallback(bind(
+            &TcpFragment::processTcp, &tcp, _1, _2, _3));
+
+    tcp.addConnectionCallback(bind(
+            &Http::onTcpConnection, &http, _1, _2));
+
+    tcp.addDataCallback(bind(
+            &Http::onTcpData, &http, _1, _2, _3, _4, _5));
+
+    tcp.addTcpcloseCallback(bind(
+            &Http::onTcpClose, &http, _1, _2));
+
+    tcp.addRstCallback(bind(
+            &Http::onTcpRst, &http, _1, _2));
+
+    tcp.addTcptimeoutCallback(bind(
+            &Http::onTcpTimeout, &http, _1, _2));
+
+    http.addHttpRequestCallback(bind(
+            &UdpClient::onHttpRequest, httpClient, _1));
+
+    //http[i].addHttpResponseCallback(bind(
+    //&UdpClient::onHttpResponse, httpClient, _1));
+}
+
 int main(int argc, char **argv)
 {
     int     opt;
     char    name[32] = "any";
-    int     nPackets = 0, nWorkers = 1;
+    int     nPackets = 0;
+    int     nWorkers = 1;
+    int     threadQueSize = 65536;
     bool    fileCapture = false;
     bool    singleThread = false;
     uint16_t  port = 9877;
@@ -81,42 +123,7 @@ int main(int argc, char **argv)
         }
     }
 
-    std::vector<IpFragment>  ip(nWorkers);
-    std::vector<TcpFragment> tcp(nWorkers);
-    std::vector<Http>        http(nWorkers);
-
-    UdpClient                httpClient({"127.0.0.1", port});
-
-    std::vector<Dispatcher::IpFragmentCallback> callbacks;
-
-    for (int i = 0; i < nWorkers; ++i) {
-
-        callbacks.push_back(bind(
-                &IpFragment::startIpfragProc, &ip[i], _1, _2, _3));
-
-        ip[i].addTcpCallback(bind(
-                &TcpFragment::processTcp, &tcp[i], _1, _2, _3));
-
-        tcp[i].addConnectionCallback(bind(
-                &Http::onTcpConnection, &http[i], _1, _2));
-
-        tcp[i].addDataCallback(bind(
-                &Http::onTcpData, &http[i], _1, _2, _3, _4, _5));
-
-        tcp[i].addTcpcloseCallback(bind(
-                &Http::onTcpClose, &http[i], _1, _2));
-
-        tcp[i].addRstCallback(bind(
-                &Http::onTcpRst, &http[i], _1, _2));
-
-        tcp[i].addTcptimeoutCallback(bind(
-                &Http::onTcpTimeout, &http[i], _1, _2));
-
-        http[i].addHttpRequestCallback(bind(
-                &UdpClient::onHttpRequest, &httpClient, _1));
-        http[i].addHttpResponseCallback(bind(
-                &UdpClient::onHttpResponse, &httpClient, _1));
-    }
+    httpClient = new UdpClient({"127.0.0.1", port});
 
     if (fileCapture) {
         cap = new Capture(name);
@@ -129,15 +136,22 @@ int main(int argc, char **argv)
     signal(SIGINT, sigHandler);
 
     if (singleThread) {
-        for (auto& cb : callbacks) {
-            cap->addIpFragmentCallback(cb);
-        }
+
+        threadFunc();
+
+        auto& ip = instance(IpFragment);
+        cap->addIpFragmentCallback(std::bind(
+                &IpFragment::startIpfragProc, &ip, _1, _2, _3));
+
         cap->startLoop(nPackets);
     }
     else {
-        Dispatcher disp(callbacks, 65536);
+
+        Dispatcher disp(nWorkers, threadQueSize, threadFunc);
+
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
+
         cap->startLoop(nPackets);
     }
 }
