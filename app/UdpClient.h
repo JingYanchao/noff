@@ -12,6 +12,7 @@
 #include <muduo/net/InetAddress.h>
 
 #include "Http.h"
+#include "ProtocolPacketCounter.h"
 
 class UdpClient : muduo::noncopyable
 {
@@ -25,8 +26,11 @@ public:
     void bind(const muduo::net::InetAddress& cliaddr);
 
     void onString(const muduo::StringPiece& str);
+
     void onHttpRequest(HttpRequest *rqst);
     void onHttpResponse(HttpResponse *rsps);
+
+    void onPacketCounter(const CounterDetail&);
 
 private:
     void onByteStream(const char *data, size_t len);

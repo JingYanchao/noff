@@ -10,12 +10,14 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <memory>
 
 #include <muduo/base/Logging.h>
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
 #include <muduo/base/Atomic.h>
 #include <muduo/base/ThreadLocalSingleton.h>
+#include <muduo/base/Singleton.h>
 
 
 #include "Capture.h"
@@ -24,6 +26,7 @@
 #include "TcpFragment.h"
 #include "Http.h"
 #include "UdpClient.h"
+#include "ProtocolPacketCounter.h"
 
 using namespace std;
 
@@ -33,9 +36,10 @@ using std::placeholders::_3;
 using std::placeholders::_4;
 using std::placeholders::_5;
 
-Capture *cap = NULL;
-
-UdpClient *httpClient = NULL;
+unique_ptr<Capture>     cap = NULL;
+unique_ptr<UdpClient>   httpRequestOutput = NULL;
+unique_ptr<UdpClient>   httpResponseOutput = NULL;
+unique_ptr<UdpClient>   packetCounterOutput = NULL;
 
 void sigHandler(int)
 {
@@ -43,41 +47,81 @@ void sigHandler(int)
     cap->breakLoop();
 }
 
-#define instance(Type) \
+#define threadInstance(Type) \
 muduo::ThreadLocalSingleton<Type>::instance()
 
-void threadFunc()
+#define globalInstance(Type) \
+muduo::Singleton<Type>::instance()
+
+void setHttpInThread()
 {
-    assert(cap != NULL);
-    assert(httpClient != NULL);
+    assert(httpRequestOutput != NULL);
+    assert(httpResponseOutput != NULL);
 
-    auto& ip = instance(IpFragment);
-    auto& tcp = instance(TcpFragment);
-    auto& http = instance(Http);
+    auto& tcp = threadInstance(TcpFragment);
+    auto& http = threadInstance(Http);
 
-    ip.addTcpCallback(bind(
-            &TcpFragment::processTcp, &tcp, _1, _2, _3));
-
+    // tcp connection->http
     tcp.addConnectionCallback(bind(
             &Http::onTcpConnection, &http, _1, _2));
 
+    // tcp data->http
     tcp.addDataCallback(bind(
             &Http::onTcpData, &http, _1, _2, _3, _4, _5));
 
+    // tcp close->http
     tcp.addTcpcloseCallback(bind(
             &Http::onTcpClose, &http, _1, _2));
 
+    // tcp rst->http
     tcp.addRstCallback(bind(
             &Http::onTcpRst, &http, _1, _2));
 
+    // tcp timeout->http
     tcp.addTcptimeoutCallback(bind(
             &Http::onTcpTimeout, &http, _1, _2));
 
+    // http request->udp client
     http.addHttpRequestCallback(bind(
-            &UdpClient::onHttpRequest, httpClient, _1));
+            &UdpClient::onHttpRequest, httpRequestOutput.get(), _1));
 
-    //http[i].addHttpResponseCallback(bind(
-    //&UdpClient::onHttpResponse, httpClient, _1));
+    // http response->udp client
+    http.addHttpResponseCallback(bind(
+            &UdpClient::onHttpResponse, httpResponseOutput.get(), _1));
+}
+
+void setPacketCounterInThread()
+{
+    assert(packetCounterOutput != NULL);
+
+    auto& tcp = threadInstance(TcpFragment);
+    auto& counter = globalInstance(ProtocolPacketCounter);
+
+    // tcp->packet counter
+    tcp.addDataCallback(bind(
+            &ProtocolPacketCounter::onTcp, &counter, _1, _2));
+
+    // packet->udp output
+    counter.setCounterCallback(bind(
+            &UdpClient::onPacketCounter, packetCounterOutput.get(), _1));
+}
+
+void initInThread()
+{
+    assert(cap != NULL);
+
+    auto& ip = threadInstance(IpFragment);
+    auto& tcp = threadInstance(TcpFragment);
+
+    // ip->tcp
+    ip.addTcpCallback(bind(
+            &TcpFragment::processTcp, &tcp, _1, _2, _3));
+
+    // tcp->http->udp output
+    setHttpInThread();
+
+    // tcp->packet counter->udp output
+    setPacketCounterInThread();
 }
 
 int main(int argc, char **argv)
@@ -123,13 +167,15 @@ int main(int argc, char **argv)
         }
     }
 
-    httpClient = new UdpClient({"127.0.0.1", port});
+    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
 
     if (fileCapture) {
-        cap = new Capture(name);
+        cap.reset(new Capture(name));
     }
     else {
-        cap = new Capture(name, 70000, true, 1000);
+        cap.reset(new Capture(name, 70000, true, 1000));
         cap->setFilter("ip");
     }
 
@@ -137,9 +183,9 @@ int main(int argc, char **argv)
 
     if (singleThread) {
 
-        threadFunc();
+        initInThread();
 
-        auto& ip = instance(IpFragment);
+        auto& ip = threadInstance(IpFragment);
         cap->addIpFragmentCallback(std::bind(
                 &IpFragment::startIpfragProc, &ip, _1, _2, _3));
 
@@ -147,10 +193,10 @@ int main(int argc, char **argv)
     }
     else {
 
-        Dispatcher disp(nWorkers, threadQueSize, threadFunc);
+        Dispatcher disp(nWorkers, threadQueSize, initInThread);
 
         cap->addIpFragmentCallback(std::bind(
-                &Dispatcher::onIpFragment, &disp, _1, _2, _3));
+                &Dispatcher::onIpFragment, disp, _1, _2, _3));
 
         cap->startLoop(nPackets);
     }

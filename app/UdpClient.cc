@@ -118,3 +118,18 @@ void UdpClient::onByteStream(const char *data, size_t len)
         LOG_SYSERR << "sendto error";
     }
 }
+
+void UdpClient::onPacketCounter(const CounterDetail& a)
+{
+    Buffer buffer;
+
+    int total = 0;
+    for (int x : a) {
+        buffer.append(std::to_string(x));
+        buffer.append("\t");
+        total += x;
+    }
+    buffer.append(std::to_string(total));
+    buffer.append("\n");
+    onByteStream(buffer.peek(), buffer.readableBytes());
+}
