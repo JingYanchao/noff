@@ -3,7 +3,7 @@
 //
 #include "ProtocolPacketCounter.h"
 
-void ProtocolPacketCounter::onTcp(TcpStream *stream, timeval timeStamp)
+void ProtocolPacketCounter::onTcpData(TcpStream *stream, timeval timeStamp)
 {
     switch (stream->addr.dest)
     {

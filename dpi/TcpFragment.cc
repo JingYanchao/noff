@@ -3,8 +3,14 @@
 //
 #include "TcpFragment.h"
 #include "Util.h"
+#include "TestCounter.h"
+
 #include <netinet/tcp.h>
 #include <muduo/base/Logging.h>
+#include <muduo/base/Singleton.h>
+
+#include <iterator>
+
 TcpFragment::TcpFragment()
 {
     LOG_INFO << "TcpFragment: started";
@@ -69,9 +75,12 @@ void TcpFragment::tcpChecktimeouts(timeval timeStamp)
             break;
         }
         // time out
-        for (auto &func : tcpcloseCallbacks_) {
-            assert(it->a_tcp != NULL);
-            func(it->a_tcp, timeStamp);
+        if(it->a_tcp->isconnnection==1) {
+            for (auto &func : tcpcloseCallbacks_) {
+
+                assert(it->a_tcp != NULL);
+                func(it->a_tcp, timeStamp);
+            }
         }
         freeTcpstream(it->a_tcp);
     }
@@ -115,8 +124,8 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
     tcphdr *this_tcphdr = (tcphdr *)((u_char*)data + 4 * this_iphdr->ip_hl);
     int datalen,iplen;
     int from_client = 1;
-    TcpStream* a_tcp;
-    HalfStream* snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
+    TcpStream *a_tcp;
+    HalfStream *snd, *rcv;//一个方向上的TCP流，TCP分为两个方向上的，一个是客户到服务端，一个是服务端到客户
     iplen = ntohs(this_iphdr->ip_len);
     if ((unsigned)iplen < 4 * this_iphdr->ip_hl + sizeof(struct tcphdr))
     {
@@ -151,14 +160,26 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
 
             addNewtcp(this_tcphdr, this_iphdr, timeStamp);//发现新的TCP流，进行添加。
         }
+        else {
+            // wrong fragment
+            SimpleCounter<2500>(timeStamp,  "tcp -> throw");
+        }
         /*第一次握手完毕返回*/
         return;
     }
+
     else
     {
-        freeTcpstream(a_tcp);
-        addNewtcp(this_tcphdr, this_iphdr, timeStamp);
+        if ((this_tcphdr->th_flags & TH_SYN) &&
+           !(this_tcphdr->th_flags & TH_ACK) &&
+           !(this_tcphdr->th_flags & TH_RST)) {
+
+            freeTcpstream(a_tcp);
+            addNewtcp(this_tcphdr, this_iphdr, timeStamp);//发现新的TCP流，进行添加。
+            return;
+        }
     }
+
     if (from_client)
     {
         snd = &a_tcp->client;
@@ -368,6 +389,13 @@ TcpStream* TcpFragment::findStream_aux(tuple4 addr)
     else
     {
         auto range = tcphashmap_.equal_range(hash_index);
+
+        auto diff = std::distance(range.first, range.second);
+
+        if (diff > 10) {
+            LOG_INFO << diff;
+        }
+
         for (auto it = range.first; it != range.second; ++it)
         {
             if(it->second.addr == addr)
@@ -400,6 +428,7 @@ TcpStream* TcpFragment::findStream(tcphdr *this_tcphdr, ip *this_iphdr, int *fro
      reversed.saddr = this_iphdr->ip_dst.s_addr;
      reversed.daddr = this_iphdr->ip_src.s_addr;
      a_tcp = findStream_aux(reversed);
+
      if (a_tcp)
      {
          *from_client = 0;
@@ -590,15 +619,16 @@ void TcpFragment::tcpQueue(TcpStream *a_tcp, tcphdr *this_tcphdr,
             }
             It++;
         }
-        if(It == rcv->fraglist.begin())
-        {
+        if(It == rcv->fraglist.begin()) {
             rcv->fraglist.push_front(pakiet);
             return;
         }
-        if(It!=rcv->fraglist.end())
-            It--;
-        else
+        if(It!=rcv->fraglist.end()) {
+            rcv->fraglist.insert(It,pakiet);
+        }
+        else {
             rcv->fraglist.push_back(pakiet);
+        }
     }
 }
 
