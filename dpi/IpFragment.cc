@@ -370,7 +370,6 @@ int IpFragment::ipDefragStub(struct ip *iph, struct ip **defrag)
 char* IpFragment::ipGlue(struct ipq *qp)
 {
     char *skb;
-    struct ip *iph;
     struct ipFrag *fp;
     unsigned char *ptr;
     int count, len;
@@ -381,7 +380,7 @@ char* IpFragment::ipGlue(struct ipq *qp)
     if (len > 65535)
     {
         // NETDEBUG(printk("Oversized IP packet from %s.\n", int_ntoa(qp->iph->ip_src.s_addr)));
-        LOG_WARN<<"ip oversize"<<iph->ip_id;
+        LOG_WARN << "ip oversize" << qp->iph->ip_id;
         ipFree(qp);
         return NULL;
     }
@@ -405,7 +404,7 @@ char* IpFragment::ipGlue(struct ipq *qp)
         if (fp->len < 0 || fp->offset + qp->ihlen + fp->len > len)
         {
             //NETDEBUG(printk("Invalid fragment list: Fragment over size.\n"));
-            LOG_WARN<<"ip_invlist"<<iph->ip_id;
+            LOG_WARN << "ip_invlist" << qp->iph->ip_id;
             ipFree(qp);
             //kfreeSkb(skb, FREE_WRITE);
             //ip_statistics.IpReasmFails++;
@@ -420,7 +419,7 @@ char* IpFragment::ipGlue(struct ipq *qp)
     ipFree(qp);
 
     /* Done with all fragments. Fixup the new IP header. */
-    iph = (struct ip *) skb;
+    ip *iph = (struct ip *) skb;
     iph->ip_off = 0;
     iph->ip_len = htons((iph->ip_hl * 4) + count);
     // skb->ip_hdr = iph;

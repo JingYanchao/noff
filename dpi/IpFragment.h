@@ -88,7 +88,7 @@ struct ipq
     // struct device *dev;	/* Device - for icmp replies */
 };
 
-class IpFragment:muduo::noncopyable
+class IpFragment : muduo::noncopyable
 {
 public:
     typedef std::function<void(ip*,int,timeval)>    IpCallback;
