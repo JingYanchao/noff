@@ -18,9 +18,10 @@ class Dispatcher : muduo::noncopyable {
 public:
     //same as Capture
     typedef std::function<void(ip*, int, timeval)> IpFragmentCallback;
+    typedef std::function<void()> ThreadInitCallback;
 
     explicit
-    Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSize);
+    Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback &cb);
     ~Dispatcher();
 
     void onIpFragment(const ip*, int, timeval);
@@ -30,7 +31,7 @@ private:
     u_int nWorkers_;
     u_int queueSize_;
 
-    std::vector<IpFragmentCallback> callbacks_;
+    ThreadInitCallback threadInitCallback_;
 
     std::vector<std::unique_ptr<muduo::ThreadPool>>  workers_;
 

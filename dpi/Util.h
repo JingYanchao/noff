@@ -8,6 +8,7 @@
 #include <string>
 #include <arpa/inet.h>
 #include <muduo/base/Logging.h>
+#include <muduo/net/InetAddress.h>
 
 const int FROMCLIENT = 0;
 const int FROMSERVER = 1;
@@ -56,6 +57,24 @@ struct tuple4
         str += std::to_string(dest);
 
         return str;
+    }
+
+    muduo::net::InetAddress toSrcInetAddress()
+    {
+        sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(source);
+        addr.sin_addr.s_addr = saddr;
+        return muduo::net::InetAddress(addr);
+    }
+
+    muduo::net::InetAddress toDstInetAddress()
+    {
+        sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(dest);
+        addr.sin_addr.s_addr = daddr;
+        return muduo::net::InetAddress(addr);
     }
 };
 

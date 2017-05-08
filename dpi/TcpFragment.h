@@ -86,7 +86,7 @@ struct Timeout
     }
 };
 
-class TcpFragment
+class TcpFragment : muduo::noncopyable
 {
 public:
     typedef std::function<void(TcpStream*,timeval)> TcpCallback;

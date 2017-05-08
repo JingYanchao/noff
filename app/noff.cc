@@ -10,11 +10,14 @@
 #include <iostream>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <memory>
 
 #include <muduo/base/Logging.h>
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
 #include <muduo/base/Atomic.h>
+#include <muduo/base/ThreadLocalSingleton.h>
+#include <muduo/base/Singleton.h>
 
 
 #include "Capture.h"
@@ -22,8 +25,8 @@
 #include "IpFragment.h"
 #include "TcpFragment.h"
 #include "Http.h"
-
-#include "rapidjson/document.h"
+#include "UdpClient.h"
+#include "ProtocolPacketCounter.h"
 
 using namespace std;
 
@@ -33,50 +36,10 @@ using std::placeholders::_3;
 using std::placeholders::_4;
 using std::placeholders::_5;
 
-Capture *cap;
-
-struct NoffParam
-{
-    // capture
-    const char  *interface = "lo";
-
-    // output
-    const char *output = "stdout";
-
-    // dispacher
-    bool multithread = true;
-    int workers = 4;
-    int queue = 65536;
-
-};
-
-#define CHECK_JSON(exp, str) \
-do  { \
-    if (!exp) { \
-        LOG_ERROR << "Parse: " << str; \
-        exit(1); \
-    } \
-} while(0)
-
-NoffParam parseParam(const char *json)
-{
-    NoffParam param;
-
-    rapidjson::Document doc;
-    doc.Parse(json);
-
-    param.interface = doc["interface"].GetString();
-    param.output = doc["output"].GetString();
-    param.workers = doc["workers"].GetInt();
-    param.queue = doc["queue"].GetInt();
-    param.multithread = doc["multithread"].GetBool();
-
-    if (!param.multithread) {
-        param.workers = 1;
-    }
-
-    return param;
-}
+unique_ptr<Capture>     cap = NULL;
+unique_ptr<UdpClient>   httpRequestOutput = NULL;
+unique_ptr<UdpClient>   httpResponseOutput = NULL;
+unique_ptr<UdpClient>   packetCounterOutput = NULL;
 
 void sigHandler(int)
 {
@@ -84,87 +47,157 @@ void sigHandler(int)
     cap->breakLoop();
 }
 
+#define threadInstance(Type) \
+muduo::ThreadLocalSingleton<Type>::instance()
+
+#define globalInstance(Type) \
+muduo::Singleton<Type>::instance()
+
+void setHttpInThread()
+{
+    assert(httpRequestOutput != NULL);
+    assert(httpResponseOutput != NULL);
+
+    auto& tcp = threadInstance(TcpFragment);
+    auto& http = threadInstance(Http);
+
+    // tcp connection->http
+    tcp.addConnectionCallback(bind(
+            &Http::onTcpConnection, &http, _1, _2));
+
+    // tcp data->http
+    tcp.addDataCallback(bind(
+            &Http::onTcpData, &http, _1, _2, _3, _4, _5));
+
+    // tcp close->http
+    tcp.addTcpcloseCallback(bind(
+            &Http::onTcpClose, &http, _1, _2));
+
+    // tcp rst->http
+    tcp.addRstCallback(bind(
+            &Http::onTcpRst, &http, _1, _2));
+
+    // tcp timeout->http
+    tcp.addTcptimeoutCallback(bind(
+            &Http::onTcpTimeout, &http, _1, _2));
+
+    // http request->udp client
+    http.addHttpRequestCallback(bind(
+            &UdpClient::onHttpRequest, httpRequestOutput.get(), _1));
+
+    // http response->udp client
+    http.addHttpResponseCallback(bind(
+            &UdpClient::onHttpResponse, httpResponseOutput.get(), _1));
+}
+
+void setPacketCounterInThread()
+{
+    assert(packetCounterOutput != NULL);
+
+    auto& tcp = threadInstance(TcpFragment);
+    auto& counter = globalInstance(ProtocolPacketCounter);
+
+    // tcp->packet counter
+    tcp.addDataCallback(bind(
+            &ProtocolPacketCounter::onTcp, &counter, _1, _2));
+
+    // packet->udp output
+    counter.setCounterCallback(bind(
+            &UdpClient::onPacketCounter, packetCounterOutput.get(), _1));
+}
+
+void initInThread()
+{
+    assert(cap != NULL);
+
+    auto& ip = threadInstance(IpFragment);
+    auto& tcp = threadInstance(TcpFragment);
+
+    // ip->tcp
+    ip.addTcpCallback(bind(
+            &TcpFragment::processTcp, &tcp, _1, _2, _3));
+
+    // tcp->http->udp output
+    setHttpInThread();
+
+    // tcp->packet counter->udp output
+    setPacketCounterInThread();
+}
+
 int main(int argc, char **argv)
 {
+    int     opt;
+    char    name[32] = "any";
+    int     nPackets = 0;
+    int     nWorkers = 1;
+    int     threadQueSize = 65536;
+    bool    fileCapture = false;
+    bool    singleThread = false;
+    uint16_t  port = 9877;
+
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
-    const char *fileName;
-    FILE *file;
-    char json[102400];
-
-    if (argc != 2) {
-        LOG_ERROR << "usage: noff filename";
-        exit(1);
+    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1) {
+        switch (opt) {
+            case 'f':
+                fileCapture = true;
+                /* fall through */
+            case 'i':
+                if (strlen(optarg) >= 31) {
+                    LOG_ERROR << "device name too long";
+                }
+                strcpy(name, optarg);
+                break;
+            case 'c':
+                nPackets = atoi(optarg);
+                break;
+            case 't':
+                nWorkers = atoi(optarg);
+                if (nWorkers <= 0) {
+                    nWorkers = 1;
+                    singleThread = true;
+                }
+                break;
+            case 'p':
+                port = (uint16_t)atoi(optarg);
+                break;
+            default:
+                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-p port]";
+                exit(1);
+        }
     }
 
-    if (strlen(argv[1]) >= 31) {
-        LOG_ERROR << "file name too long";
-        exit(1);
+    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
+
+    if (fileCapture) {
+        cap.reset(new Capture(name));
     }
-
-    fileName = argv[1];
-
-    file = fopen(fileName, "r");
-    if (file == NULL) {
-        LOG_ERROR << "file not exists";
-        exit(1);
+    else {
+        cap.reset(new Capture(name, 70000, true, 1000));
+        cap->setFilter("ip");
     }
-
-    size_t len = fread(json, 1, sizeof(json), file);
-    json[len] = '\0';
-
-    NoffParam param = parseParam(json);
-
-    std::vector<IpFragment>  ip(param.workers);
-    std::vector<TcpFragment> tcp(param.workers);
-    std::vector<Http>        http(param.workers);
-
-    std::vector<Dispatcher::IpFragmentCallback> callbacks;
-
-    for (int i = 0; i < param.workers; ++i) {
-
-        callbacks.push_back(bind(
-                &IpFragment::startIpfragProc, &ip[i], _1, _2, _3));
-
-        ip[i].addTcpCallback(bind(
-                &TcpFragment::processTcp, &tcp[i], _1, _2, _3));
-
-        tcp[i].addConnectionCallback(bind(
-                &Http::onTcpConnection, &http[i], _1, _2));
-
-        tcp[i].addDataCallback(bind(
-                &Http::onTcpData, &http[i], _1, _2, _3, _4, _5));
-
-        tcp[i].addTcpcloseCallback(bind(
-                &Http::onTcpClose, &http[i], _1, _2));
-
-        tcp[i].addRstCallback(bind(
-                &Http::onTcpRst, &http[i], _1, _2));
-
-        tcp[i].addTcptimeoutCallback(bind(
-                &Http::onTcpTimeout, &http[i], _1, _2));
-
-
-        // http[i].addHttpRequestCallback(onHttpRequest);
-        // http[i].addHttpResponseCallback(onHttpResponse);
-    }
-
-    cap = new Capture(param.interface, 70000, true, 1000);
-    cap->setFilter("ip");
-
 
     signal(SIGINT, sigHandler);
 
-    if (!param.multithread) {
-        for (auto& cb : callbacks) {
-            cap->addIpFragmentCallback(cb);
-        }
-        cap->startLoop(0);
+    if (singleThread) {
+
+        initInThread();
+
+        auto& ip = threadInstance(IpFragment);
+        cap->addIpFragmentCallback(std::bind(
+                &IpFragment::startIpfragProc, &ip, _1, _2, _3));
+
+        cap->startLoop(nPackets);
     }
     else {
-        Dispatcher disp(callbacks, param.queue);
+
+        Dispatcher disp(nWorkers, threadQueSize, &initInThread);
+
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
-        cap->startLoop(0);
+
+        cap->startLoop(nPackets);
     }
 }

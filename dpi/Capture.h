@@ -12,7 +12,7 @@
 #include <vector>
 #include <netinet/ip.h>
 
-class Capture: muduo::noncopyable {
+class Capture : muduo::noncopyable {
 
 public:
     typedef std::function<void(const pcap_pkthdr*, const u_char*, timeval)> PacketCallback;

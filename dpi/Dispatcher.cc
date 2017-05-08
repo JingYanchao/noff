@@ -9,7 +9,9 @@
 
 #include <muduo/base/Logging.h>
 #include <muduo/base/Exception.h>
+#include <muduo/base/ThreadLocalSingleton.h>
 
+#include "IpFragment.h"
 #include "Dispatcher.h"
 #include "Sharding.h"
 
@@ -21,10 +23,10 @@ Sharding shard;
 };
 
 
-Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSize)
-    :nWorkers_((u_int)cb.size()),
+Dispatcher::Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback& cb )
+    :nWorkers_(nWorkers),
      queueSize_(queueSize),
-     callbacks_(cb),
+     threadInitCallback_(cb),
      taskCounter_(nWorkers_)
 {
     workers_.reserve(nWorkers_);
@@ -33,6 +35,7 @@ Dispatcher::Dispatcher(const std::vector<IpFragmentCallback>& cb, u_int queueSiz
         char name[32];
         snprintf(name, sizeof name, "%s%lu", "worker", i + 1);
         workers_.emplace_back(new muduo::ThreadPool(name));
+        workers_[i]->setThreadInitCallback(cb);
         workers_[i]->setMaxQueueSize(queueSize_);
         workers_[i]->start(1);
     }
@@ -57,23 +60,21 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
         return;
     }
 
-    u_int index;
+    u_int index = 0;
 
     try {
         index = shard(hdr, len) % nWorkers_;
     }
     catch (const muduo::Exception &ex) {
-        // not UDP, TCP, ICMP protocals, this is usual
+        // not UDP, TCP, ICMP protocols, this is usual
         LOG_TRACE << "Dispatcher: " << ex.what();
         return;
     }
-    catch (...)
-    {
+    catch (...) {
         LOG_FATAL << "Dispatcher: unknown error";
     }
 
     auto& worker = *workers_[index];
-    auto& callback = callbacks_[index];
 
     if (worker.queueSize() >= queueSize_ - 10) {
         LOG_WARN << "Dispatcher: " << worker.name() << " overloaded";
@@ -82,15 +83,16 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 
     // necessary malloc and memcpy
     ip *copiedIpFragment = (ip*) malloc(len);
-    if (copiedIpFragment == NULL)
-    {
+    if (copiedIpFragment == NULL) {
         LOG_FATAL << "Dispatcher: malloc failed";
     }
-
     memmove(copiedIpFragment, hdr, len);
 
     // should not block
-    worker.run(std::bind(callback, copiedIpFragment, len, timeStamp));
+    worker.run([=](){
+        auto& ip = muduo::ThreadLocalSingleton<IpFragment>::instance();
+        ip.startIpfragProc(copiedIpFragment, len, timeStamp);
+    });
     ++taskCounter_[index];
 
     // after task is complete, free pointer
