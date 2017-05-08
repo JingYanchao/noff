@@ -32,12 +32,20 @@ public:
 
     void onPacketCounter(const CounterDetail&);
 
+    template <typename T>
+    void onAny(const T &data)
+    {
+        muduo::net::Buffer buffer;
+        buffer.append(std::to_string(data));
+        buffer.append("\n");
+        onByteStream(buffer.peek(), buffer.readableBytes());
+    }
+
 private:
     void onByteStream(const char *data, size_t len);
 
     muduo::net::InetAddress srvaddr_;
     int sockfd_;
 };
-
 
 #endif //NOFF_UDPCLIENT_H

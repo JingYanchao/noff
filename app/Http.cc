@@ -5,6 +5,7 @@
 #include <muduo/base/Logging.h>
 #include "TcpFragment.h"
 #include "Http.h"
+#include "TestCounter.h"
 
 int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
 {
@@ -184,6 +185,8 @@ void Http::onTcpConnection(TcpStream *stream, timeval timeStamp)
 void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len, int flag)
 {
     assert(stream != NULL);
+
+    SimpleCounter<2502>(timeStamp,  "tcp -> *");
 
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {
