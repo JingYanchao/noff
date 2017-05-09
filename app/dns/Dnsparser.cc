@@ -53,9 +53,9 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
 //        {
 //            func()
 //        }
-        for(auto res:dns.queries)
+        for(auto& res:dns.queries)
             free(res.name);
-        for(auto res:dns.answers)
+        for(auto& res:dns.answers)
             free(res.data);
         return pos;
         //Todo: free
@@ -89,10 +89,10 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
             LOG_INFO<<"this is not request dns packet";
         pos = parserQuestions(this_dns,pos+12,dns.qdcount,dns,datalen);
         numRequest++;
-        for(auto res:dns.queries)
+        for(auto& res:dns.queries)
             LOG_INFO<<"the dns request is:"<<res.name<<"type:"<<res.type;
 
-        for(auto res:dns.queries)
+        for(auto& res:dns.queries)
             free(res.name);
     }
     return pos;

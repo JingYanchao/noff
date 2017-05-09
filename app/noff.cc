@@ -185,7 +185,8 @@ int main(int argc, char **argv)
 
     signal(SIGINT, sigHandler);
 
-    if (singleThread) {
+    if (singleThread)
+    {
 
         initInThread();
 

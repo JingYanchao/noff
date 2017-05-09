@@ -47,15 +47,15 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         else
             dns.answers.clear();
         numResponse++;
-        for(auto res:dns.answers)
+        for(auto& res:dns.answers)
             LOG_INFO<<"the dns response is:"<<res.name<<"data:"<<res.data<<"type:"<<res.type;
 //        for(auto& func:dnsrequestCallback_)
 //        {
 //            func()
 //        }
-        for(auto res:dns.queries)
+        for(auto& res:dns.queries)
             free(res.name);
-        for(auto res:dns.answers)
+        for(auto& res:dns.answers)
             free(res.data);
         return pos;
         //Todo: free
