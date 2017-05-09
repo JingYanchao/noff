@@ -2,7 +2,7 @@
 cmake-build-debug
 cmake-build-release
 build
-/.idea/
+.idea
 bin
 CMakeLists.txt
 cloc-1.72.pl
