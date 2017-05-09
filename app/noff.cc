@@ -134,7 +134,7 @@ int main(int argc, char **argv)
     int     threadQueSize = 65536;
     bool    fileCapture = false;
     bool    singleThread = false;
-    uint16_t  port = 9877;
+    uint16_t  port = 2333;
 
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
