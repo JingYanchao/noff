@@ -24,9 +24,9 @@
 #include "Dispatcher.h"
 #include "IpFragment.h"
 #include "TcpFragment.h"
+#include "ProtocolPacketCounter.h"
 #include "Http.h"
 #include "UdpClient.h"
-#include "ProtocolPacketCounter.h"
 #include "TestCounter.h"
 
 using namespace std;
@@ -41,7 +41,6 @@ unique_ptr<Capture>     cap = NULL;
 unique_ptr<UdpClient>   httpRequestOutput = NULL;
 unique_ptr<UdpClient>   httpResponseOutput = NULL;
 unique_ptr<UdpClient>   packetCounterOutput = NULL;
-unique_ptr<UdpClient>   tcpCounterOutput = NULL;
 
 void sigHandler(int)
 {
@@ -85,11 +84,11 @@ void setHttpInThread()
 
     // http request->udp client
     http.addHttpRequestCallback(bind(
-            &UdpClient::onHttpRequest, httpRequestOutput.get(), _1));
+            &UdpClient::onDataPointer<HttpRequest>, httpRequestOutput.get(), _1));
 
     // http response->udp client
     http.addHttpResponseCallback(bind(
-            &UdpClient::onHttpResponse, httpResponseOutput.get(), _1));
+            &UdpClient::onDataPointer<HttpResponse>, httpResponseOutput.get(), _1));
 }
 
 void setPacketCounterInThread()
@@ -105,7 +104,7 @@ void setPacketCounterInThread()
 
     // packet->udp output
     counter.setCounterCallback(bind(
-            &UdpClient::onPacketCounter, packetCounterOutput.get(), _1));
+            &UdpClient::onData<CounterDetail>, packetCounterOutput.get(), _1));
 }
 
 void initInThread()
@@ -135,7 +134,7 @@ int main(int argc, char **argv)
     int     threadQueSize = 65536;
     bool    fileCapture = false;
     bool    singleThread = false;
-    uint16_t  port = 9877;
+    uint16_t  port = 2333;
 
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
@@ -170,10 +169,9 @@ int main(int argc, char **argv)
         }
     }
 
-    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}));
-    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}));
-    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
-    tcpCounterOutput.reset(new UdpClient({"127.0.0.1", port++}));
+    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "http request"));
+    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "http response"));
+    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
 
     if (fileCapture) {
         cap.reset(new Capture(name));

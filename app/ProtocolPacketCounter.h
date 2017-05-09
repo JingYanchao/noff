@@ -25,6 +25,8 @@
 #define N_PROTOCOLS     7
 
 typedef std::array<int, N_PROTOCOLS> CounterDetail;
+std::string to_string(const CounterDetail&);
+
 
 class ProtocolPacketCounter : muduo::noncopyable
 {
