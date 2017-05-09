@@ -3,6 +3,26 @@
 //
 #include "ProtocolPacketCounter.h"
 
+using std::string;
+
+string to_string(const CounterDetail &d)
+{
+    using std::to_string;
+
+    string buffer;
+    int total = 0;
+
+    for (int x : d) {
+        buffer.append(std::to_string(x));
+        buffer.append("\t");
+        total += x;
+    }
+
+    buffer.append(std::to_string(total));
+
+    return buffer;
+}
+
 void ProtocolPacketCounter::onTcpData(TcpStream *stream, timeval timeStamp)
 {
     switch (stream->addr.dest)

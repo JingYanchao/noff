@@ -71,6 +71,9 @@ struct HttpResponse
     {}
 };
 
+std::string to_string(const HttpRequest &);
+std::string to_string(const HttpResponse &);
+
 class Http : muduo::noncopyable
 {
 public:

@@ -7,6 +7,93 @@
 #include "Http.h"
 #include "TestCounter.h"
 
+using std::string;
+
+namespace
+{
+
+template<typename T>
+void onHttpCommon(string &buffer, const T &data)
+{
+    using std::to_string;
+
+    // timestamp
+    buffer.append(to_string(data.timeStamp.tv_sec));
+
+    // bytes
+    buffer.append("\t");
+    buffer.append(to_string(data.bytes));
+
+    // src IP:Port
+    buffer.append("\t");
+    auto str = data.srcAddr.toIp();
+    buffer.append(str.data(), str.size());
+    buffer.append("\t");
+    buffer.append(to_string(data.srcAddr.toPort()));
+
+    // dst IP:Port
+    buffer.append("\t");
+    str = data.srcAddr.toIp();
+    buffer.append(str.data(), str.size());
+    buffer.append("\t");
+    buffer.append(to_string(data.dstAddr.toPort()));
+}
+
+template <typename Map>
+string getVaule(const Map& map, const char *key)
+{
+    auto it = map.find(key);
+    if (it != map.end()) {
+        return it->second;
+    }
+    return "";
+}
+
+}
+
+string to_string(const HttpRequest &rqst)
+{
+    string buffer;
+
+    // common data
+    onHttpCommon(buffer, rqst);
+
+    // method
+    buffer.append("\t");
+    buffer.append(rqst.method);
+
+    // host
+    buffer.append("\t");
+    buffer.append(getVaule(rqst.headers, "host"));
+
+    // ref
+    buffer.append("\t");
+    buffer.append(getVaule(rqst.headers, "referer"));
+
+    // agent
+    buffer.append("\t");
+    buffer.append(getVaule(rqst.headers, "user-agent"));
+
+    return buffer;
+}
+
+string to_string(const HttpResponse &rsps)
+{
+    string buffer;
+
+    onHttpCommon(buffer, rsps);
+
+    // status code
+    buffer.append("\t");
+    buffer.append(std::to_string(rsps.statusCode));
+
+    // content type
+    buffer.append("\t");
+    buffer.append(getVaule(rsps.headers, "content-type"));
+
+    return buffer;
+}
+
 int Http::onHeaderFiled(HttpParser *parser, const char *data, size_t len)
 {
     Http *http = (Http*)parser->data;
