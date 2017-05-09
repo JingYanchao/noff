@@ -123,6 +123,8 @@ void initInThread()
 
     // tcp->packet counter->udp output
     setPacketCounterInThread();
+
+
 }
 
 int main(int argc, char **argv)
