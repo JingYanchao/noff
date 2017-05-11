@@ -25,7 +25,7 @@
 #include "IpFragment.h"
 #include "TcpFragment.h"
 #include "ProtocolPacketCounter.h"
-#include "Http.h"
+#include "http/Http.h"
 #include "UdpClient.h"
 #include "TestCounter.h"
 
@@ -138,8 +138,10 @@ int main(int argc, char **argv)
 
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
-    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1) {
-        switch (opt) {
+    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1)
+    {
+        switch (opt)
+        {
             case 'f':
                 fileCapture = true;
                 /* fall through */
@@ -169,21 +171,25 @@ int main(int argc, char **argv)
         }
     }
 
+    //define the udp client
     httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "http request"));
     httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "http response"));
     packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
 
-    if (fileCapture) {
+    if (fileCapture)
+    {
         cap.reset(new Capture(name));
     }
-    else {
+    else
+    {
         cap.reset(new Capture(name, 70000, true, 1000));
         cap->setFilter("ip");
     }
 
     signal(SIGINT, sigHandler);
 
-    if (singleThread) {
+    if (singleThread)
+    {
 
         initInThread();
 
@@ -193,10 +199,10 @@ int main(int argc, char **argv)
 
         cap->startLoop(nPackets);
     }
-    else {
+    else
+    {
 
         Dispatcher disp(nWorkers, threadQueSize, &initInThread);
-
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
 
