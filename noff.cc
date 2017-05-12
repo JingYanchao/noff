@@ -26,10 +26,10 @@
 #include "Dispatcher.h"
 #include "IpFragment.h"
 #include "TcpFragment.h"
-#include "MacCount.h"
-#include "ProtocolPacketCounter.h"
-#include "Http.h"
-#include "Dnsparser.h"
+#include "mac/MacCount.h"
+#include "protocol/ProtocolPacketCounter.h"
+#include "http/Http.h"
+#include "dns/Dnsparser.h"
 #include "UdpClient.h"
 
 using namespace std;
@@ -265,6 +265,7 @@ int main(int argc, char **argv)
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
 
+        // wait for initInThread
         countDown->wait();
         cap->startLoop(nPackets);
     }
