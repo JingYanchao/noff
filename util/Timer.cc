@@ -3,6 +3,7 @@
 //
 // Created by root on 17-5-9.
 //
+
 #include <pthread.h>
 #include <errno.h>
 
@@ -22,5 +23,6 @@ bool Timer::checkTime(timeval TimeStamp)
         timeout = true;
     }
     pthread_mutex_unlock(mutex);
+    
     return timeout;
 }

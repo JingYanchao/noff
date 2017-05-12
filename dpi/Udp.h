@@ -14,6 +14,7 @@ class Udp
 {
 public:
     typedef std::function<void(tuple4,char*,int,timeval)> UdpCallback;
+
     void addUdpCallback(UdpCallback cb)
     {
         udpCallback_.push_back(cb);

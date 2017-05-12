@@ -24,5 +24,4 @@ void Udp::processUdp(ip *iphdr, int skblen, timeval timeStamp)
     {
         func(udptuple,((char*)this_udphdr+sizeof(udphdr)),datalen,timeStamp);
     }
-
 }
