@@ -186,10 +186,6 @@ void initInThread()
     ip.addUdpCallback(bind(
             &Udp::processUdp, &udp, _1, _2, _3));
 
-    //ip->tcphdr
-    tcpHdr.addTcpHeaderCallback(bind(
-            &UdpClient::onData<tcpheader>, tcpHeaderOutput.get(), _1));
-
     // tcp->http->udp output
     setHttpInThread();
 
