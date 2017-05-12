@@ -26,10 +26,11 @@
 #include "Dispatcher.h"
 #include "IpFragment.h"
 #include "TcpFragment.h"
-#include "MacCount.h"
-#include "ProtocolPacketCounter.h"
-#include "Http.h"
-#include "Dnsparser.h"
+#include "mac/MacCount.h"
+#include "protocol/ProtocolPacketCounter.h"
+#include "http/Http.h"
+#include "dns/Dnsparser.h"
+#include "header/TcpHeader.h"
 #include "UdpClient.h"
 #include "header/TcpHeader.h"
 
@@ -51,7 +52,6 @@ unique_ptr<UdpClient>   dnsResponseOutput = NULL;
 unique_ptr<UdpClient>   packetCounterOutput = NULL;
 unique_ptr<UdpClient>   macCounterOutput = NULL;
 unique_ptr<UdpClient>   tcpHeaderOutput = NULL;
-
 
 void sigHandler(int)
 {
@@ -156,6 +156,20 @@ void setMacCounterInThread()
             &UdpClient::onData<MacInfo>, macCounterOutput.get(), _1));
 }
 
+void setTcpHeaderInThread()
+{
+    assert(tcpHeaderOutput != NULL);
+
+    auto& ip = threadInstance(IpFragment);
+    auto& header = threadInstance(TcpHeader);
+
+    ip.addTcpCallback(bind(
+            &TcpHeader::processTcpHeader, &header, _1, _2, _3));
+
+    header.addTcpHeaderCallback(bind(
+            &UdpClient::onData<tcpheader>, tcpHeaderOutput.get(), _1));
+}
+
 void initInThread()
 {
     assert(cap != NULL);
@@ -181,8 +195,12 @@ void initInThread()
 
     // tcp->packet counter->udp output
     setPacketCounterInThread();
-    //udp->dns>udp
+
+    // udp->dns>udp
     setDnsCounterInThread();
+
+    // tcp->udp
+    setTcpHeaderInThread();
 
     countDown->countDown();
 }
@@ -273,6 +291,7 @@ int main(int argc, char **argv)
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
 
+        // wait for initInThread
         countDown->wait();
         cap->startLoop(nPackets);
     }
