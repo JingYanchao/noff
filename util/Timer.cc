@@ -22,6 +22,7 @@ bool Timer::checkTime(timeval TimeStamp)
         time = TimeStamp.tv_sec + 1;
         timeout = true;
     }
+
     pthread_mutex_unlock(mutex);
     return timeout;
 }

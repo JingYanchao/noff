@@ -18,6 +18,7 @@ public:
 
 private:
     __time_t time;
+
     muduo::MutexLock lock;
 };
 #endif //DNSPARSER_TIMER_H

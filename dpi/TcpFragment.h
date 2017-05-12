@@ -92,6 +92,8 @@ public:
     typedef std::function<void(TcpStream*,timeval)> TcpCallback;
     typedef std::function<void(TcpStream*,timeval,u_char*,int,int)> DataCallback;
 
+    TcpFragment();
+    ~TcpFragment();
 
     void addTcpcloseCallback(const TcpCallback& cb)
     {
@@ -118,10 +120,20 @@ public:
         tcpdataCallback_.push_back(cb);
     }
 
-    TcpFragment();
-    ~TcpFragment();
-
     void processTcp(ip *,int,timeval);
+
+    void clearAllStream(timeval timeStamp)
+    {
+        for (auto& stream : tcphashmap_) {
+            if (stream.second.isconnnection) {
+                for (auto &func : tcptimeoutCallback_) {
+                    func(&stream.second, timeStamp);
+                }
+            }
+        }
+        tcpExit();
+    }
+
 private:
     std::vector<TcpCallback>            tcpcloseCallbacks_;
     std::vector<TcpCallback>            tcptimeoutCallback_;

@@ -32,7 +32,6 @@
 #include "Http.h"
 #include "Dnsparser.h"
 #include "UdpClient.h"
-#include "TestCounter.h"
 
 using namespace std;
 
@@ -240,12 +239,10 @@ int main(int argc, char **argv)
 
     countDown.reset(new muduo::CountDownLatch(nWorkers));
 
-    if (fileCapture)
-    {
+    if (fileCapture) {
         cap.reset(new Capture(name));
     }
-    else
-    {
+    else {
         cap.reset(new Capture(name, 70000, true, 1000));
         cap->setFilter("ip");
     }

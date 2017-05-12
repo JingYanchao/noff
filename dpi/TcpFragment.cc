@@ -3,8 +3,8 @@
 //
 #include "TcpFragment.h"
 #include "Util.h"
-#include "TestCounter.h"
 
+#include <limits.h>
 #include <netinet/tcp.h>
 #include <muduo/base/Logging.h>
 #include <muduo/base/Singleton.h>
@@ -14,13 +14,15 @@
 TcpFragment::TcpFragment()
 {
     LOG_INFO << "TcpFragment: started";
-    int num_tcp_stream = 1000001;
+    int num_tcp_stream = 500000;
     tcpInit(num_tcp_stream);
 }
+
 TcpFragment::~TcpFragment()
 {
     tcpExit();
 }
+
 int TcpFragment::tcpInit(int size)
 {
     if (!size)
@@ -34,7 +36,7 @@ int TcpFragment::tcpInit(int size)
     return 0;
 }
 
-void TcpFragment::tcpExit(void)
+void TcpFragment::tcpExit()
 {
     if(tcphashmap_.empty())
         return;
@@ -452,16 +454,9 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     //队列已经满了,新的直接不缓存
     if (tcphashmap_.size() >= tcpStreamTableSize_)
     {
-        auto it = tcpTimeoutSet_.begin();
-        if (it->a_tcp->isconnnection == 1) {
-            for (auto &func : tcptimeoutCallback_) {
-                assert(it->a_tcp != NULL);
-                func(it->a_tcp, timeStamp);
-            }
-        }
-        freeTcpstream(it->a_tcp);
-
-        LOG_DEBUG << "the tcp_queue is out of range";
+        LOG_INFO << "tcp stream all cleared, size = "
+                 << tcphashmap_.size();
+        clearAllStream(timeStamp);
     }
 
     a_tcp.client.count = 0;
@@ -735,7 +730,7 @@ void TcpFragment::addTcptimeout(TcpStream *a_tcp,timeval timeStamp)
     Timeout temp;
     temp.a_tcp = a_tcp;
     temp.time = timeStamp;
-    temp.time.tv_sec += 60;
+    temp.time.tv_sec += 30;
     tcpTimeoutSet_.insert(std::move(temp));
 }
 
