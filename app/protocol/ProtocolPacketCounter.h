@@ -12,7 +12,8 @@
 #include <muduo/base/Atomic.h>
 #include <muduo/base/Mutex.h>
 
-#include "dpi/TcpFragment.h"
+#include "TcpFragment.h"
+#include "Timer.h"
 
 #define DNS_PORT        53
 #define SMTP_PORT       25
@@ -20,22 +21,23 @@
 #define HTTP_PORT       80
 #define HTTPS_PORT      443
 #define TELNET_PORT     23
-#define FTP_PORT        115
+#define FTP_PORT        21
 
 #define N_PROTOCOLS     7
 
 typedef std::array<int, N_PROTOCOLS> CounterDetail;
+std::string to_string(const CounterDetail&);
+
 
 class ProtocolPacketCounter : muduo::noncopyable
 {
 public:
-    ProtocolPacketCounter(int interval = 1) :
-            interval_(interval)
-    {}
 
     typedef std::function<void(const CounterDetail&)> CounterCallback;
 
     void onTcpData(TcpStream *stream, timeval timeStamp);
+
+    void onUdpData(tuple4, char*, int, timeval timeStamp);
 
     void setCounterCallback(const CounterCallback& cb)
     {
@@ -44,12 +46,9 @@ public:
 
 private:
 
-    int interval_;
-
     CounterCallback counterCallback_;
 
-    muduo::MutexLock lock;
-    int64_t sendTimestamp;
+    Timer timer;
 
     std::array<muduo::AtomicInt32, N_PROTOCOLS>
             counter;

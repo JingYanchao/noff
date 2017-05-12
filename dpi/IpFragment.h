@@ -12,6 +12,8 @@
 #include <netinet/udp.h>
 #include <netinet/ip_icmp.h>
 
+#include "Util.h"
+
 #define IP_CE		0x8000	/* Flag: "Congestion" */
 #define IP_DF		0x4000	/* Flag: "Don't Fragment" */
 #define IP_MF		0x2000	/* Flag: "More Fragments" */
@@ -92,8 +94,8 @@ class IpFragment : muduo::noncopyable
 {
 public:
     typedef std::function<void(ip*,int,timeval)>    IpCallback;
-    typedef std::function<void(ip*,int,timeval)>    TcpCallback;
-    typedef std::function<void(ip*, int,timeval)>   UdpCallback;
+    typedef std::function<void(ip*,int,timeval)>    UdpCallback;
+    typedef std::function<void(ip*, int,timeval)>   TcpCallback;
     typedef std::function<void(ip*,int,timeval)>    IcmpCallback;
     IpFragment();
     IpFragment(size_t n);

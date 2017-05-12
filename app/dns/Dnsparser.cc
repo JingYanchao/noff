@@ -3,24 +3,31 @@
 //
 #include "Dnsparser.h"
 #include <muduo/base/Logging.h>
+
 DnsParser::DnsParser()
 {
     numRequest = 0;
     numResponse = 0;
+    numUdp = 0;
 }
+
 DnsParser::~DnsParser()
 {
+    LOG_INFO<<"Udp:"<<numUdp;
     LOG_INFO<<"DnsRequest:"<<numRequest<<" DnsResponse:"<<numResponse;
 }
+
 u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeval timeStamp)
 {
     //dns response
     u_int32_t pos = 0;
+    numUdp++;
     if(udptuple.source == 53)
     {
+        DnsResponse dnsResponse;
         if(datalen<12)
         {
-            LOG_INFO<<"this is invalied";
+            LOG_DEBUG<<"this is invalied";
             return 0;
         }
         DnsInfo dns;
@@ -47,24 +54,38 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         else
             dns.answers.clear();
         numResponse++;
-        for(auto res:dns.answers)
-            LOG_INFO<<"the dns response is:"<<res.name<<"data:"<<res.data<<"type:"<<res.type;
-//        for(auto& func:dnsrequestCallback_)
-//        {
-//            func()
-//        }
+        char temp_ip_address[30];
+
+        for(auto& res:dns.answers)
+        {
+            dnsResponse.timeStamp = timeStamp;
+            dnsResponse.srcip = udptuple.saddr;
+            dnsResponse.dstip = udptuple.daddr;
+            dnsResponse.Rname.assign(res.name,strlen(res.name));
+            dnsResponse.Rclass = res.cls;
+            dnsResponse.Rtype = res.type;
+            dnsResponse.ttl = res.ttl;
+            dnsResponse.result.assign(res.data,strlen(res.data));
+        }
+
+        for(auto& func:dnsresponseCallback_)
+        {
+            if(!dnsResponse.Rname.empty())
+                func(dnsResponse);
+        }
+
         for(auto& res:dns.queries)
             free(res.name);
         for(auto& res:dns.answers)
             free(res.data);
         return pos;
-        //Todo: free
     }
     else if(udptuple.dest == 53) //dns requeset
     {
+        DnsRequest dnsRequest;
         if(datalen<12)
         {
-            LOG_INFO<<"this is invalied";
+            LOG_DEBUG<<"this is invalied";
             return 0;
         }
         DnsInfo dns;
@@ -86,11 +107,24 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         dns.nscount = (this_dns[pos+8] << 8) +this_dns[pos+9];
         dns.arcount = (this_dns[pos+10] << 8) +this_dns[pos+11];
         if(dns.qdcount!=1&&dns.ancount!=0&&dns.nscount!=0&&dns.arcount!=0)
-            LOG_INFO<<"this is not request dns packet";
+            LOG_DEBUG<<"this is not request dns packet";
         pos = parserQuestions(this_dns,pos+12,dns.qdcount,dns,datalen);
         numRequest++;
         for(auto& res:dns.queries)
-            LOG_INFO<<"the dns request is:"<<res.name<<"type:"<<res.type;
+        {
+            dnsRequest.Qname.assign(res.name,strlen(res.name));
+            dnsRequest.Qtype = res.type;
+            dnsRequest.Qtype = res.cls;
+            dnsRequest.srcip = udptuple.saddr;
+            dnsRequest.dstip = udptuple.daddr;
+            dnsRequest.timeStamp = timeStamp;
+        }
+//            LOG_INFO<<"the dns request is:"<<res.name<<"type:"<<res.type;
+
+        for(auto& func:dnsrequestCallback_)
+        {
+            func(dnsRequest);
+        }
 
         for(auto& res:dns.queries)
             free(res.name);
@@ -112,7 +146,7 @@ u_int32_t DnsParser::parserQuestions(char *data, u_int32_t pos,u_int16_t count, 
         //data is invalied
         if(current.name == NULL || (pos+2)>=datalen)
         {
-            LOG_WARN<<"dns data is wrong";
+            LOG_DEBUG<<"dns data is wrong";
             if(current.name!=NULL)
                 free(current.name);
             return 0;
@@ -307,6 +341,62 @@ char * DnsParser::A(char* packet, uint32_t pos, u_int16_t rdlength)
     }
     sprintf(data, "%d.%d.%d.%d", (u_char)packet[pos], (u_char)packet[pos+1], (u_char)packet[pos+2], (u_char)packet[pos+3]);
     return data;
+}
+
+std::string to_string(const DnsRequest& dnsrequest)
+{
+    char data[20];
+    std::string temp;
+    sprintf(data,"%lu",dnsrequest.timeStamp.tv_sec);
+    temp.append(data);
+    temp.append("\t");
+    char src_ip_address[30];
+    inet_ntop(AF_INET,&dnsrequest.srcip,src_ip_address,30);
+    char dst_ip_address[30];
+    inet_ntop(AF_INET,&dnsrequest.dstip,dst_ip_address,30);
+    temp.append(src_ip_address);
+    temp.append("\t");
+    temp.append(dst_ip_address);
+    temp.append("\t");
+    temp.append(dnsrequest.Qname);
+    temp.append("\t");
+    sprintf(data,"%hu",dnsrequest.Qclass);
+    temp.append(data);
+    temp.append("\t");
+    sprintf(data,"%hu",dnsrequest.Qtype);
+    temp.append(data);
+    return temp;
+
+}
+
+std::string to_string(const DnsResponse& dnsresponse)
+{
+    char data[20];
+    std::string temp;
+    sprintf(data,"%lu",dnsresponse.timeStamp.tv_sec);
+    temp.append(data);
+    temp.append("\t");
+    char src_ip_address[30];
+    inet_ntop(AF_INET,&dnsresponse.srcip,src_ip_address,30);
+    char dst_ip_address[30];
+    inet_ntop(AF_INET,&dnsresponse.dstip,dst_ip_address,30);
+    temp.append(src_ip_address);
+    temp.append("\t");
+    temp.append(dst_ip_address);
+    temp.append("\t");
+    temp.append(dnsresponse.Rname);
+    temp.append("\t");
+    sprintf(data,"%u",dnsresponse.Rclass);
+    temp.append(data);
+    temp.append("\t");
+    sprintf(data,"%u",dnsresponse.Rtype);
+    temp.append(data);
+    temp.append("\t");
+    sprintf(data,"%u",dnsresponse.ttl);
+    temp.append(data);
+    temp.append("\t");
+    temp += dnsresponse.result;
+    return temp;
 }
 
 

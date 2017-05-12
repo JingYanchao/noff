@@ -8,7 +8,12 @@
 #include <string>
 #include <arpa/inet.h>
 #include <muduo/base/Logging.h>
+#include <muduo/base/Exception.h>
 #include <muduo/net/InetAddress.h>
+
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+#include <netinet/ip.h>
 
 const int FROMCLIENT = 0;
 const int FROMSERVER = 1;
