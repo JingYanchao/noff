@@ -13,7 +13,7 @@
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Singleton.h>
 #include <net/ethernet.h>
-#include "dpi/TcpFragment.h"
+#include "TcpFragment.h"
 #include "UdpClient.h"
 
 template <uint16_t PORT>
@@ -59,57 +59,4 @@ void SimpleCounter(timeval timeStamp, const char *name)
     static TestCounter<PORT> counter(name);
     counter.count(timeStamp, name);
 }
-
-template <typename T>
-class Counter : muduo::noncopyable
-{
-public:
-    typedef std::function<void(const T&)> CounterCallback;
-
-    void onData(T *data, timeval timeStamp)
-    {
-        onData(*data, timeStamp);
-    }
-
-    virtual void onData(T &data, timeval timeStamp)
-    {
-
-    }
-
-    void setCounterCallback(const CounterCallback& cb)
-    {
-        counterCallback_ = cb;
-    }
-
-protected:
-    void processExpire(timeval timeStamp)
-    {
-        bool expire = false;
-        {
-            muduo::MutexLockGuard guard(lock);
-            if (timeStamp.tv_sec >= sendTimestamp) {
-                sendTimestamp = timeStamp.tv_sec + interval_;
-                expire = true;
-            }
-        }
-
-        if (expire && counterCallback_) {
-            counterCallback_(
-                    { counter[0].getAndSet(0), counter[1].getAndSet(0),
-                      counter[2].getAndSet(0), counter[3].getAndSet(0),
-                      counter[4].getAndSet(0), counter[5].getAndSet(0),
-                      counter[6].getAndSet(0) });
-        }
-    }
-
-private:
-
-    int interval_;
-
-    CounterCallback counterCallback_;
-
-    muduo::MutexLock lock;
-    int64_t sendTimestamp;
-};
-
 #endif //NOFF_TESTCOUNTER_H

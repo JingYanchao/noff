@@ -6,9 +6,6 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/time.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <netinet/ip_icmp.h>
 #include <string.h>
 
 #include <muduo/base/Exception.h>
@@ -18,8 +15,7 @@
 
 namespace
 {
-
-tuple4 getTuple4(const ip* hdr, int len)
+inline tuple4 getTuple4(const ip* hdr, int len)
 {
     u_int16_t   srcPort, dstPort;
     u_char      *data = (u_char*) hdr + 4 * hdr->ip_hl;

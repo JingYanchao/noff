@@ -273,7 +273,7 @@ void Http::onTcpData(TcpStream *stream, timeval timeStamp, u_char *data, int len
 {
     assert(stream != NULL);
 
-    SimpleCounter<2502>(timeStamp,  "tcp -> *");
+    // SimpleCounter<2502>(timeStamp,  "tcp -> *");
 
     tuple4 t4 = stream->addr;
     if (t4.dest != 80) {

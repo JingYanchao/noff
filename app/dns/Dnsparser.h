@@ -87,7 +87,7 @@ public:
     }
     DnsParser();
     ~DnsParser();
-    u_int32_t processDns(tuple4 udptuple,char* data,int datalen,timeval timeStamp);
+    u_int32_t processDns(tuple4 udptuple, char* data, int datalen,timeval timeStamp);
 
 private:
     std::vector<RequestCallback> dnsrequestCallback_;
