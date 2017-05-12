@@ -5,7 +5,6 @@
 #include <muduo/base/Logging.h>
 #include "TcpFragment.h"
 #include "Http.h"
-#include "TestCounter.h"
 
 using std::string;
 

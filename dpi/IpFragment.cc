@@ -2,7 +2,6 @@
 // Created by jyc on 17-4-14.
 //
 #include "IpFragment.h"
-#include "TestCounter.h"
 
 #include <muduo/base/Logging.h>
 #include <sys/types.h>
@@ -258,7 +257,8 @@ char* IpFragment::ipDefrag(struct ip *iph, struct skBuff *skb)
         tfp = tmp->next;
         if (tmp->offset >= end)
             break;			/* no overlaps at all */
-        LOG_WARN<<"ip overlap:"<<iph->ip_id;
+
+        LOG_DEBUG<<"ip overlap:"<<iph->ip_id;
 
         i = end - next->offset;	/* overlap is 'i' bytes */
         tmp->len -= i;		/* so reduce size of    */

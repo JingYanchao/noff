@@ -347,7 +347,7 @@ std::string to_string(const DnsRequest& dnsrequest)
 {
     char data[20];
     std::string temp;
-    sprintf(data,"%u",dnsrequest.timeStamp.tv_sec);
+    sprintf(data,"%lu",dnsrequest.timeStamp.tv_sec);
     temp.append(data);
     temp.append("\t");
     char src_ip_address[30];
@@ -360,10 +360,10 @@ std::string to_string(const DnsRequest& dnsrequest)
     temp.append("\t");
     temp.append(dnsrequest.Qname);
     temp.append("\t");
-    sprintf(data,"%u",dnsrequest.Qclass);
+    sprintf(data,"%hu",dnsrequest.Qclass);
     temp.append(data);
     temp.append("\t");
-    sprintf(data,"%u",dnsrequest.Qtype);
+    sprintf(data,"%hu",dnsrequest.Qtype);
     temp.append(data);
     return temp;
 
