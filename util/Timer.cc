@@ -23,6 +23,5 @@ bool Timer::checkTime(timeval TimeStamp)
         timeout = true;
     }
     pthread_mutex_unlock(mutex);
-    
     return timeout;
 }
