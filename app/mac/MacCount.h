@@ -12,7 +12,6 @@
 
 //const char MAC1[7] = {(char)0xe4, (char)0xc7, 0x22, 0x3a, 0x06, (char)0xb5};
 //const char MAC2[7]={(char) 0x84, 0x78, (char) 0xac, 0x61, 0x22, (char) 0xf1};
-
 const u_int8_t MAC1[6] = {228,199,34,62,5,248};
 const u_int8_t MAC2[6] = {132,120,172,97,34,241};
 
