@@ -31,6 +31,7 @@
 #include "Http.h"
 #include "Dnsparser.h"
 #include "UdpClient.h"
+#include "header/TcpHeader.h"
 
 using namespace std;
 
@@ -49,6 +50,8 @@ unique_ptr<UdpClient>   dnsRequestOutput = NULL;
 unique_ptr<UdpClient>   dnsResponseOutput = NULL;
 unique_ptr<UdpClient>   packetCounterOutput = NULL;
 unique_ptr<UdpClient>   macCounterOutput = NULL;
+unique_ptr<UdpClient>   tcpHeaderOutput = NULL;
+
 
 void sigHandler(int)
 {
@@ -169,6 +172,10 @@ void initInThread()
     ip.addUdpCallback(bind(
             &Udp::processUdp, &udp, _1, _2, _3));
 
+    //ip->tcphdr
+    tcpHdr.addTcpHeaderCallback(bind(
+            &UdpClient::onData<tcpheader>, tcpHeaderOutput.get(), _1));
+
     // tcp->http->udp output
     setHttpInThread();
 
@@ -233,6 +240,7 @@ int main(int argc, char **argv)
     dnsResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns response"));
     packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
     macCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "mac counter"));
+    tcpHeaderOutput.reset(new UdpClient({"127.0.0.1", port++}, "tcp header"));
 
     countDown.reset(new muduo::CountDownLatch(nWorkers));
 
