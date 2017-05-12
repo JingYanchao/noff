@@ -58,11 +58,11 @@ void sigHandler(int)
     cap->breakLoop();
 }
 
-#define threadInstance(Type) \
-muduo::ThreadLocalSingleton<Type>::instance()
-
 #define globalInstance(Type) \
 muduo::Singleton<Type>::instance()
+
+#define threadInstance(Type) \
+muduo::ThreadLocalSingleton<Type>::instance()
 
 void setHttpInThread()
 {
