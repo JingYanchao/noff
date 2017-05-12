@@ -26,7 +26,6 @@
 #include "Dispatcher.h"
 #include "IpFragment.h"
 #include "TcpFragment.h"
-
 #include "MacCount.h"
 #include "ProtocolPacketCounter.h"
 #include "Http.h"
@@ -116,7 +115,6 @@ void setPacketCounterInThread()
     // udp->packet counter
     udp.addUdpCallback(bind(
             &ProtocolPacketCounter::onUdpData, &counter, _1, _2, _3, _4));
-
     // packet->udp output
     counter.setCounterCallback(bind(
             &UdpClient::onData<CounterDetail>, packetCounterOutput.get(), _1));
@@ -177,7 +175,6 @@ void initInThread()
 
     // tcp->packet counter->udp output
     setPacketCounterInThread();
-
     //udp->dns>udp
     setDnsCounterInThread();
 
@@ -262,7 +259,6 @@ int main(int argc, char **argv)
         auto& ip = threadInstance(IpFragment);
         cap->addIpFragmentCallback(std::bind(
                 &IpFragment::startIpfragProc, &ip, _1, _2, _3));
-
         countDown->wait();
         cap->startLoop(nPackets);
     }
