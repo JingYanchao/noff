@@ -14,7 +14,8 @@ class Udp
 {
 public:
     typedef std::function<void(tuple4,char*,int,timeval)> UdpCallback;
-    void addudpCallback(UdpCallback cb)
+    void addUdpCallback(UdpCallback cb)
+
     {
         udpCallback_.push_back(cb);
     }
@@ -23,12 +24,5 @@ private:
     std::vector<UdpCallback> udpCallback_;
 
 };
-
-
-
-
-
-
-
 
 #endif //DNSPARSER_UDP_H

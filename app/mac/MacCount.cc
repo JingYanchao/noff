@@ -8,8 +8,14 @@
 
 void MacCount::processMac(const pcap_pkthdr * header, const u_char * data, timeval timeStamp)
 {
+    if (header->caplen <= sizeof(ether_header)) {
+        return;
+    }
+
     ether_header* machdr = (ether_header*)data;
-//    LOG_INFO<<machdr->ether_dhost[0]<<" "<<machdr->ether_dhost[1]<<" "<<machdr->ether_dhost[2]<<" "<<machdr->ether_dhost[3]<<" "<<machdr->ether_dhost[4]<<" "<<machdr->ether_dhost[5];
+
+    //LOG_INFO<<machdr->ether_dhost[0]<<" "<<machdr->ether_dhost[1]<<" "<<machdr->ether_dhost[2]<<" "<<machdr->ether_dhost[3]<<" "<<machdr->ether_dhost[4]<<" "<<machdr->ether_dhost[5];
+
     int cmpRes = macCompare(machdr->ether_dhost);
     if(cmpRes == 1)
     {
@@ -28,13 +34,15 @@ void MacCount::processMac(const pcap_pkthdr * header, const u_char * data, timev
         {
             func(macInfo);
         }
+        macInfo.inputstream = 0;
+        macInfo.outputstream = 0;
     }
 }
 
 int MacCount::macCompare(u_int8_t *macArray)
 {
     int flag = 1;
-    for(int i=0;i<6;i++)
+    for(int i=0; i<6; i++)
     {
         if(macArray[i]!=MAC1[i])
         {
@@ -45,7 +53,7 @@ int MacCount::macCompare(u_int8_t *macArray)
     if(flag!=0)
         return flag;
     flag = 2;
-    for(int i=0;i<6;i++)
+    for(int i=0; i<6; i++)
     {
         if(macArray[i]!=MAC2[i])
         {
@@ -69,7 +77,6 @@ std::string to_string(const MacInfo& macInfo)
     temp.append("\t");
     sprintf(buf,"%lld",macInfo.outputstream/1000);
     temp.append(buf);
-    temp.append("\n");
     return temp;
 }
 

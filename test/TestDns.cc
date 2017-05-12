@@ -4,11 +4,11 @@
 //
 // Created by jyc on 17-4-18.
 //
-#include "../dpi/Capture.h"
-#include "../dpi/Dispatcher.h"
-#include "../dpi/IpFragment.h"
-#include "../dpi/TcpFragment.h"
-#include "../dpi/Udp.h"
+#include "Capture.h"
+#include "Dispatcher.h"
+#include "IpFragment.h"
+#include "TcpFragment.h"
+#include "Udp.h"
 #include "app/Dnsparser.h"
 
 #include <signal.h>
@@ -76,7 +76,8 @@ int main()
     std::vector<Dispatcher::IpFragmentCallback> callbacks;
     for(int i=0;i<NUM_THREAD;i++)
     {
-        UdpFrag[i].addudpCallback(std::bind(&DnsParser::processDns,&dnsParser[i],std::placeholders::_1,std::placeholders::_2,std::placeholders::_3,std::placeholders::_4));
+        UdpFrag[i].addudpCallback(std::bind(
+                &DnsParser::processDns,&dnsParser[i],std::placeholders::_1,std::placeholders::_2,std::placeholders::_3,std::placeholders::_4));
 
     }
 

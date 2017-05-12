@@ -162,7 +162,7 @@ void TcpFragment::processTcp(ip * data,int skblen, timeval timeStamp)
         }
         else {
             // wrong fragment
-            SimpleCounter<2500>(timeStamp,  "tcp -> throw");
+            // SimpleCounter<2500>(timeStamp,  "tcp -> throw");
         }
         /*第一次握手完毕返回*/
         return;
@@ -450,10 +450,18 @@ void TcpFragment::addNewtcp(tcphdr *this_tcphdr,ip *this_iphdr,timeval timeStamp
     hash_index = hash.get_key(addr.saddr,addr.source,addr.daddr,addr.dest,tcpStreamTableSize_);
 
     //队列已经满了,新的直接不缓存
-    if (tcphashmap_.size()> tcpStreamTableSize_)
+    if (tcphashmap_.size() >= tcpStreamTableSize_)
     {
-        LOG_WARN<<"the tcp_queue is out of range";
-        return;
+        auto it = tcpTimeoutSet_.begin();
+        if (it->a_tcp->isconnnection == 1) {
+            for (auto &func : tcptimeoutCallback_) {
+                assert(it->a_tcp != NULL);
+                func(it->a_tcp, timeStamp);
+            }
+        }
+        freeTcpstream(it->a_tcp);
+
+        LOG_DEBUG << "the tcp_queue is out of range";
     }
 
     a_tcp.client.count = 0;

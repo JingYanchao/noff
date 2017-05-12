@@ -27,7 +27,7 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         DnsResponse dnsResponse;
         if(datalen<12)
         {
-            LOG_INFO<<"this is invalied";
+            LOG_DEBUG<<"this is invalied";
             return 0;
         }
         DnsInfo dns;
@@ -85,7 +85,7 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         DnsRequest dnsRequest;
         if(datalen<12)
         {
-            LOG_INFO<<"this is invalied";
+            LOG_DEBUG<<"this is invalied";
             return 0;
         }
         DnsInfo dns;
@@ -107,7 +107,7 @@ u_int32_t DnsParser::processDns(tuple4 udptuple, char *data, int datalen, timeva
         dns.nscount = (this_dns[pos+8] << 8) +this_dns[pos+9];
         dns.arcount = (this_dns[pos+10] << 8) +this_dns[pos+11];
         if(dns.qdcount!=1&&dns.ancount!=0&&dns.nscount!=0&&dns.arcount!=0)
-            LOG_INFO<<"this is not request dns packet";
+            LOG_DEBUG<<"this is not request dns packet";
         pos = parserQuestions(this_dns,pos+12,dns.qdcount,dns,datalen);
         numRequest++;
         for(auto& res:dns.queries)
@@ -146,7 +146,7 @@ u_int32_t DnsParser::parserQuestions(char *data, u_int32_t pos,u_int16_t count, 
         //data is invalied
         if(current.name == NULL || (pos+2)>=datalen)
         {
-            LOG_WARN<<"dns data is wrong";
+            LOG_DEBUG<<"dns data is wrong";
             if(current.name!=NULL)
                 free(current.name);
             return 0;
@@ -365,7 +365,6 @@ std::string to_string(const DnsRequest& dnsrequest)
     temp.append("\t");
     sprintf(data,"%u",dnsrequest.Qtype);
     temp.append(data);
-    temp.append("\n");
     return temp;
 
 }
@@ -374,7 +373,7 @@ std::string to_string(const DnsResponse& dnsresponse)
 {
     char data[20];
     std::string temp;
-    sprintf(data,"%u",dnsresponse.timeStamp.tv_sec);
+    sprintf(data,"%lu",dnsresponse.timeStamp.tv_sec);
     temp.append(data);
     temp.append("\t");
     char src_ip_address[30];
@@ -397,7 +396,6 @@ std::string to_string(const DnsResponse& dnsresponse)
     temp.append(data);
     temp.append("\t");
     temp += dnsresponse.result;
-    temp.append("\n");
     return temp;
 }
 

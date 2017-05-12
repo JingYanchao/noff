@@ -37,8 +37,7 @@ IpFragment::IpFragment(size_t n)
 
 IpFragment::~IpFragment()
 {
-    if (fragtable)
-    {
+    if (fragtable) {
         free(fragtable);
         fragtable = NULL;
     }
@@ -88,7 +87,7 @@ void IpFragment::startIpfragProc(ip *data, int len, timeval timeStamp)
     skblen = (skblen + 15) & ~15;
     skblen += 168; //sk_buff_size;
 
-    genIpProc(reinterpret_cast<u_char *>(iph), skblen,timeStamp);
+    genIpProc(reinterpret_cast<u_char*>(iph), skblen,timeStamp);
     if (need_free)
         free(iph);
 }
@@ -96,6 +95,7 @@ void IpFragment::startIpfragProc(ip *data, int len, timeval timeStamp)
 void IpFragment::genIpProc(u_char *data, int skblen,timeval timeStamp)
 {
     ip *this_iphdr = (ip *)(data);
+
     switch (((ip *) data)->ip_p)
     {
 
@@ -105,14 +105,16 @@ void IpFragment::genIpProc(u_char *data, int skblen,timeval timeStamp)
             {
                 func(this_iphdr, skblen,timeStamp);
             }
-            SimpleCounter<2501>(timeStamp,  "ip -> tcp");
+
+            // SimpleCounter<2501>(timeStamp,  "ip -> tcp");
+
             break;
         }
         case IPPROTO_UDP:
         {
             for(auto& func:udpCallbacks_)
             {
-                func(this_iphdr,skblen,timeStamp);
+                func(this_iphdr, skblen, timeStamp);
             }
             break;
         }
