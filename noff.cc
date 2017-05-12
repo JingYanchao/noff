@@ -30,6 +30,7 @@
 #include "protocol/ProtocolPacketCounter.h"
 #include "http/Http.h"
 #include "dns/Dnsparser.h"
+#include "header/TcpHeader.h"
 #include "UdpClient.h"
 
 using namespace std;
@@ -49,6 +50,7 @@ unique_ptr<UdpClient>   dnsRequestOutput = NULL;
 unique_ptr<UdpClient>   dnsResponseOutput = NULL;
 unique_ptr<UdpClient>   packetCounterOutput = NULL;
 unique_ptr<UdpClient>   macCounterOutput = NULL;
+unique_ptr<UdpClient>   tcpHeaderOutput = NULL;
 
 void sigHandler(int)
 {
@@ -153,6 +155,20 @@ void setMacCounterInThread()
             &UdpClient::onData<MacInfo>, macCounterOutput.get(), _1));
 }
 
+void setTcpHeaderInThread()
+{
+    assert(tcpHeaderOutput != NULL);
+
+    auto& ip = threadInstance(IpFragment);
+    auto& header = threadInstance(TcpHeader);
+
+    ip.addTcpCallback(bind(
+            &TcpHeader::processTcpHeader, &header, _1, _2, _3));
+
+    header.addTcpHeaderCallback(bind(
+            &UdpClient::onData<tcpheader>, tcpHeaderOutput.get(), _1));
+}
+
 void initInThread()
 {
     assert(cap != NULL);
@@ -174,8 +190,12 @@ void initInThread()
 
     // tcp->packet counter->udp output
     setPacketCounterInThread();
-    //udp->dns>udp
+
+    // udp->dns>udp
     setDnsCounterInThread();
+
+    // tcp->udp
+    setTcpHeaderInThread();
 
     countDown->countDown();
 }
@@ -233,6 +253,7 @@ int main(int argc, char **argv)
     dnsResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns response"));
     packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
     macCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "mac counter"));
+    tcpHeaderOutput.reset(new UdpClient({"127.0.0.1", port++}, "tcp header"));
 
     countDown.reset(new muduo::CountDownLatch(nWorkers));
 
