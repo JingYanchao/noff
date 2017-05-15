@@ -59,11 +59,11 @@ void sigHandler(int)
     cap->breakLoop();
 }
 
-#define threadInstance(Type) \
-muduo::ThreadLocalSingleton<Type>::instance()
-
 #define globalInstance(Type) \
 muduo::Singleton<Type>::instance()
+
+#define threadInstance(Type) \
+muduo::ThreadLocalSingleton<Type>::instance()
 
 void setHttpInThread()
 {
@@ -185,10 +185,6 @@ void initInThread()
     // ip->udp
     ip.addUdpCallback(bind(
             &Udp::processUdp, &udp, _1, _2, _3));
-
-    //ip->tcphdr
-    tcpHdr.addTcpHeaderCallback(bind(
-            &UdpClient::onData<tcpheader>, tcpHeaderOutput.get(), _1));
 
     // tcp->http->udp output
     setHttpInThread();
