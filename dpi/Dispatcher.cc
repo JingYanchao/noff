@@ -103,6 +103,6 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 void Dispatcher::runTask(const Task &t)
 {
     for (auto& w : workers_) {
-        w->run(t);
+        w->nonBlockingRun(t);
     }
 }
