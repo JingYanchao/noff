@@ -29,7 +29,7 @@ void TaskQueue::start()
 void TaskQueue::stop()
 {
     Task emptyTask;
-    while (!run(emptyTask))
+    while (!nonBlockingRun(emptyTask))
         ;
     thread_->join();
 }
@@ -39,14 +39,22 @@ size_t TaskQueue::queueSize() const
     return static_cast<size_t >(queue_.size());
 }
 
-bool TaskQueue::run(const Task& task)
+bool TaskQueue::nonBlockingRun(const Task &task)
 {
-    return queue_.try_push(task);
+    if (queue_.size() < maxSize_) {
+        queue_.push(task);
+        return true;
+    }
+    return false;
 }
 
 bool TaskQueue::nonBlockingRun(Task &&task)
 {
-    return queue_.try_push(std::move(task));
+    if (queue_.size() < maxSize_){
+        queue_.push(std::move(task));
+        return true;
+    }
+    return false;
 }
 
 TaskQueue::Task TaskQueue::take()

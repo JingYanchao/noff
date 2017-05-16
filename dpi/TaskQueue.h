@@ -24,7 +24,7 @@ public:
     // Must be called before start().
     void setMaxQueueSize(int maxSize)
     {
-        queue_.set_capacity(maxSize);
+        maxSize_ = maxSize;
     }
 
     void setThreadInitCallback(const Task& cb)
@@ -41,13 +41,14 @@ public:
     size_t queueSize() const;
 
     // Could block if maxQueueSize > 0
-    bool run(const Task& f);
+    bool nonBlockingRun(const Task &f);
     bool nonBlockingRun(Task &&f);
 
 private:
     void runInThread();
     Task take();
 
+    int maxSize_;
     muduo::string name_;
     Task threadInitCallback_;
     std::unique_ptr<muduo::Thread> thread_;
