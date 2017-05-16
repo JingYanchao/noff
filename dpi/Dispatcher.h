@@ -11,7 +11,8 @@
 #include <netinet/ip.h>
 
 #include <muduo/base/noncopyable.h>
-#include <muduo/base/ThreadPool.h>
+
+#include "TaskQueue.h"
 
 class Dispatcher : muduo::noncopyable {
 
@@ -32,11 +33,10 @@ public:
 private:
 
     u_int nWorkers_;
-    u_int queueSize_;
 
     ThreadInitCallback threadInitCallback_;
 
-    std::vector<std::unique_ptr<muduo::ThreadPool>>  workers_;
+    std::vector<std::unique_ptr<TaskQueue>>  workers_;
 
     std::vector<int> taskCounter_;
 };

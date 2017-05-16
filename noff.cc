@@ -185,7 +185,7 @@ void initInThread()
     // ip->udp
     ip.addUdpCallback(bind(
             &Udp::processUdp, &udp, _1, _2, _3));
-    
+
     // tcp->http->udp output
     setHttpInThread();
 
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
     char    name[32] = "any";
     int     nPackets = 0;
     int     nWorkers = 1;
-    int     threadQueSize = 65536;
+    int     taskQueSize = 65536;
     bool    fileCapture = false;
     bool    singleThread = false;
     uint16_t  port = 2333;
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        Dispatcher disp(nWorkers, threadQueSize, &initInThread);
+        Dispatcher disp(nWorkers, taskQueSize, &initInThread);
         cap->addIpFragmentCallback(std::bind(
                 &Dispatcher::onIpFragment, &disp, _1, _2, _3));
 
