@@ -29,7 +29,6 @@ void MacCount::processMac(const pcap_pkthdr * header, const u_char * data, timev
     // when it is at regular time
     if(timer.checkTime(timeStamp))
     {
-        macInfo.timestamp = timeStamp.tv_sec;
         for(auto& func:etherCallback_)
         {
             func(macInfo);
@@ -55,7 +54,7 @@ int MacCount::macCompare(u_int8_t *macArray)
     flag = 2;
     for(int i=0; i<6; i++)
     {
-        if(macArray[i]!=MAC2[i])
+        if(macArray[i]!=MAC2[i]) 
         {
             flag = 0;
             break;
@@ -69,9 +68,6 @@ std::string to_string(const MacInfo& macInfo)
 {
     std::string temp;
     char buf[30];
-    sprintf(buf,"%d",macInfo.timestamp);
-    temp.append(buf);
-    temp.append("\t");
     sprintf(buf,"%lld",macInfo.inputstream/1000);
     temp.append(buf);
     temp.append("\t");
