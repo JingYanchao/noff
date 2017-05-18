@@ -49,9 +49,9 @@ unique_ptr<UdpClient>   httpRequestOutput = NULL;
 unique_ptr<UdpClient>   httpResponseOutput = NULL;
 unique_ptr<UdpClient>   dnsRequestOutput = NULL;
 unique_ptr<UdpClient>   dnsResponseOutput = NULL;
-unique_ptr<UdpClient>   packetCounterOutput = NULL;
-unique_ptr<UdpClient>   macCounterOutput = NULL;
 unique_ptr<UdpClient>   tcpHeaderOutput = NULL;
+unique_ptr<UdpClient>   macCounterOutput = NULL;
+unique_ptr<UdpClient>   packetCounterOutput = NULL;
 
 void sigHandler(int)
 {
@@ -210,11 +210,13 @@ int main(int argc, char **argv)
     int     taskQueSize = 65536;
     bool    fileCapture = false;
     bool    singleThread = false;
-    uint16_t  port = 2333;
+    char    ip_addr[16] = "10.255.0.12";
+    uint16_t  port = 10666;
+    uint16_t  port2 = 30001;
 
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
-    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1)
+    while ( (opt = getopt(argc, argv, "f:i:c:t:h:p:")) != -1)
     {
         switch (opt)
         {
@@ -238,23 +240,31 @@ int main(int argc, char **argv)
                     singleThread = true;
                 }
                 break;
+            case 'h':
+                if (strlen(optarg) >= 16) {
+                    LOG_ERROR << "IP address too long";
+                    exit(1);
+                }
+                strcpy(ip_addr, optarg);
+                break;
             case 'p':
                 port = (uint16_t)atoi(optarg);
                 break;
             default:
-                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-p port]";
+                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-h ip] [-p port]";
                 exit(1);
         }
     }
 
     //define the udp client
-    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "http request"));
-    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "http response"));
-    dnsRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns request"));
-    dnsResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns response"));
-    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
-    macCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "mac counter"));
-    tcpHeaderOutput.reset(new UdpClient({"127.0.0.1", port++}, "tcp header"));
+    httpRequestOutput.reset(new UdpClient({ ip_addr, port++ }, "http request"));
+    httpResponseOutput.reset(new UdpClient({ ip_addr, port++ }, "http response"));
+    dnsRequestOutput.reset(new UdpClient({ ip_addr, port++ }, "dns request"));
+    dnsResponseOutput.reset(new UdpClient({ ip_addr, port++ }, "dns response"));
+
+    tcpHeaderOutput.reset(new UdpClient({ ip_addr, port2++}, "tcp header"));
+    macCounterOutput.reset(new UdpClient({ ip_addr, port2++ }, "mac counter"));
+    packetCounterOutput.reset(new UdpClient({ip_addr, port2++}, "packet counter"));
 
     countDown.reset(new muduo::CountDownLatch(nWorkers));
 
