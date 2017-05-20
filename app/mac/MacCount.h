@@ -19,7 +19,6 @@ struct MacInfo
 {
     long long int inputstream;
     long long int outputstream;
-    int timestamp;
 };
 
 
@@ -32,7 +31,6 @@ public:
     {
         macInfo.inputstream = 0;
         macInfo.outputstream = 0;
-        macInfo.timestamp = 0;
     };
     void addEtherCallback(const EtherCallback& cb)
     {

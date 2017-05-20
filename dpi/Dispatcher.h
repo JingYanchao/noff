@@ -11,7 +11,8 @@
 #include <netinet/ip.h>
 
 #include <muduo/base/noncopyable.h>
-#include <muduo/base/ThreadPool.h>
+
+#include "TaskQueue.h"
 
 class Dispatcher : muduo::noncopyable {
 
@@ -19,7 +20,6 @@ public:
     //same as Capture
     typedef std::function<void(ip*, int, timeval)> IpFragmentCallback;
     typedef std::function<void()> ThreadInitCallback;
-    typedef std::function<void()> Task;
 
     explicit
     Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback &cb);
@@ -27,16 +27,13 @@ public:
 
     void onIpFragment(const ip*, int, timeval);
 
-    void runTask(const Task&);
-
 private:
 
     u_int nWorkers_;
-    u_int queueSize_;
 
     ThreadInitCallback threadInitCallback_;
 
-    std::vector<std::unique_ptr<muduo::ThreadPool>>  workers_;
+    std::vector<std::unique_ptr<TaskQueue>>  workers_;
 
     std::vector<int> taskCounter_;
 };

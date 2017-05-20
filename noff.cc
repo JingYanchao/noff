@@ -12,6 +12,7 @@
 #include <signal.h>
 #include <memory>
 
+
 #include <muduo/base/Logging.h>
 #include <muduo/base/Mutex.h>
 #include <muduo/base/Timestamp.h>
@@ -19,13 +20,16 @@
 #include <muduo/base/ThreadLocalSingleton.h>
 #include <muduo/base/Singleton.h>
 #include <muduo/base/CountDownLatch.h>
+#include <muduo/base/ThreadPool.h>
 #include <dpi/Udp.h>
 
 
 #include "Capture.h"
-#include "Dispatcher.h"
+#include "PFCapture.h"
 #include "IpFragment.h"
 #include "TcpFragment.h"
+#include "Dispatcher.h"
+#include "Dispatcher2.h"
 #include "mac/MacCount.h"
 #include "protocol/ProtocolPacketCounter.h"
 #include "http/Http.h"
@@ -42,21 +46,28 @@ using std::placeholders::_3;
 using std::placeholders::_4;
 using std::placeholders::_5;
 
-unique_ptr<Capture>     cap = NULL;
-unique_ptr<muduo::CountDownLatch>
-                        countDown = NULL;
+vector<unique_ptr<PFCapture>>
+                        caps;
 unique_ptr<UdpClient>   httpRequestOutput = NULL;
 unique_ptr<UdpClient>   httpResponseOutput = NULL;
 unique_ptr<UdpClient>   dnsRequestOutput = NULL;
 unique_ptr<UdpClient>   dnsResponseOutput = NULL;
-unique_ptr<UdpClient>   packetCounterOutput = NULL;
-unique_ptr<UdpClient>   macCounterOutput = NULL;
 unique_ptr<UdpClient>   tcpHeaderOutput = NULL;
+unique_ptr<UdpClient>   macCounterOutput = NULL;
+unique_ptr<UdpClient>   packetCounterOutput = NULL;
+
+bool running = true;
 
 void sigHandler(int)
 {
-    assert(cap != NULL);
-    cap->breakLoop();
+    assert(!caps.empty());
+    for (auto &c : caps) {
+        c->breakLoop();
+    }
+    if (running) {
+        running = false;
+    }
+    exit(0);
 }
 
 #define globalInstance(Type) \
@@ -142,19 +153,19 @@ void setDnsCounterInThread()
             dnsResponseOutput.get(), _1));
 }
 
-void setMacCounterInThread()
-{
-    assert(cap != NULL);
-    assert(macCounterOutput != NULL);
-
-    auto& mac = globalInstance(MacCount);
-
-    cap->addPacketCallBack(bind(
-            &MacCount::processMac, &mac, _1, _2, _3));
-
-    mac.addEtherCallback(bind(
-            &UdpClient::onData<MacInfo>, macCounterOutput.get(), _1));
-}
+//void setMacCounterInThread()
+//{
+//    assert(cap != NULL);
+//    assert(macCounterOutput != NULL);
+//
+//    auto& mac = globalInstance(MacCount);
+//
+//    cap->addPacketCallBack(bind(
+//            &MacCount::processMac, &mac, _1, _2, _3));
+//
+//    mac.addEtherCallback(bind(
+//            &UdpClient::onData<MacInfo>, macCounterOutput.get(), _1));
+//}
 
 void setTcpHeaderInThread()
 {
@@ -172,7 +183,7 @@ void setTcpHeaderInThread()
 
 void initInThread()
 {
-    assert(cap != NULL);
+    // assert(!caps.empty());
 
     auto& ip = threadInstance(IpFragment);
     auto& udp = threadInstance(Udp);
@@ -197,30 +208,24 @@ void initInThread()
 
     // tcp->udp
     setTcpHeaderInThread();
-
-    countDown->countDown();
 }
 
 int main(int argc, char **argv)
 {
-    int     opt;
-    char    name[32] = "any";
-    int     nPackets = 0;
-    int     nWorkers = 1;
-    int     threadQueSize = 65536;
-    bool    fileCapture = false;
-    bool    singleThread = false;
-    uint16_t  port = 2333;
+    int opt;
+    char name[32] = "any";
+    int nPackets = 0;
+    int nWorkers = 1;
+    int taskQueSize = 65536;
+    bool singleThread = false;
+    char ipAddress[16] = "10.255.0.12";
+    uint16_t port = 10666;
+    uint16_t port2 = 30001;
 
     muduo::Logger::setLogLevel(muduo::Logger::INFO);
 
-    while ( (opt = getopt(argc, argv, "f:i:c:t:p:")) != -1)
-    {
-        switch (opt)
-        {
-            case 'f':
-                fileCapture = true;
-                /* fall through */
+    while ((opt = getopt(argc, argv, "i:c:t:h:p:")) != -1) {
+        switch (opt) {
             case 'i':
                 if (strlen(optarg) >= 31) {
                     LOG_ERROR << "device name too long";
@@ -238,57 +243,71 @@ int main(int argc, char **argv)
                     singleThread = true;
                 }
                 break;
+            case 'h':
+                if (strlen(optarg) >= 16) {
+                    LOG_ERROR << "IP address too long";
+                    exit(1);
+                }
+                strcpy(ipAddress, optarg);
+                break;
             case 'p':
-                port = (uint16_t)atoi(optarg);
+                port = (uint16_t) atoi(optarg);
                 break;
             default:
-                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-p port]";
+                LOG_ERROR << "usage: [-i interface] [-c packet count] [-t threads] [-h ip] [-p port]";
                 exit(1);
         }
     }
 
     //define the udp client
-    httpRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "http request"));
-    httpResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "http response"));
-    dnsRequestOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns request"));
-    dnsResponseOutput.reset(new UdpClient({"127.0.0.1", port++}, "dns response"));
-    packetCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "packet counter"));
-    macCounterOutput.reset(new UdpClient({"127.0.0.1", port++}, "mac counter"));
-    tcpHeaderOutput.reset(new UdpClient({"127.0.0.1", port++}, "tcp header"));
+    httpRequestOutput.reset(new UdpClient({ipAddress, port++}, "http request"));
+    httpResponseOutput.reset(new UdpClient({ipAddress, port++}, "http response"));
+    dnsRequestOutput.reset(new UdpClient({ipAddress, port++}, "dns request"));
+    dnsResponseOutput.reset(new UdpClient({ipAddress, port++}, "dns response"));
 
-    countDown.reset(new muduo::CountDownLatch(nWorkers));
-
-    if (fileCapture) {
-        cap.reset(new Capture(name));
-    }
-    else {
-        cap.reset(new Capture(name, 70000, true, 1000));
-        cap->setFilter("ip");
-    }
+    tcpHeaderOutput.reset(new UdpClient({ipAddress, port2++}, "tcp header"));
+    macCounterOutput.reset(new UdpClient({ipAddress, port2++}, "mac counter"));
+    packetCounterOutput.reset(new UdpClient({ipAddress, port2++}, "packet counter"));
 
     signal(SIGINT, sigHandler);
 
-    // pcap->mac counter->udp
-    setMacCounterInThread();
+    bool isLoopback = (strcmp("any", name) == 0);
 
-    if (singleThread)
-    {
+    if (!singleThread) {
+
+        muduo::ThreadPool pool;
+        pool.setThreadInitCallback(&initInThread);
+        pool.start(nWorkers);
+        for (int i = 0; i < nWorkers; ++i) {
+            std::string queName = std::string(name) + "@" + std::to_string(i);
+            caps.emplace_back(new PFCapture(queName, 65560, isLoopback));
+            pool.run([=, &caps]() {
+                auto &ip = threadInstance(IpFragment);
+                caps[i]->addIpFragmentCallback(std::bind(
+                        &IpFragment::startIpfragProc, &ip, _1, _2, _3));
+                caps[i]->setFilter("ip");
+                caps[i]->startLoop(0);
+            });
+        }
+
+        LOG_INFO << "all workers started";
+        while (running) {
+            pause();
+        }
+    }
+    else {
+
+        string queName = std::string(name);
+
+        caps.emplace_back(new PFCapture(queName, 65560, isLoopback));
+
         initInThread();
 
-        auto& ip = threadInstance(IpFragment);
-        cap->addIpFragmentCallback(std::bind(
-                &IpFragment::startIpfragProc, &ip, _1, _2, _3));
-        countDown->wait();
-        cap->startLoop(nPackets);
-    }
-    else
-    {
-        Dispatcher disp(nWorkers, threadQueSize, &initInThread);
-        cap->addIpFragmentCallback(std::bind(
-                &Dispatcher::onIpFragment, &disp, _1, _2, _3));
+        auto &ip = threadInstance(IpFragment);
 
-        // wait for initInThread
-        countDown->wait();
-        cap->startLoop(nPackets);
+        caps[0]->addIpFragmentCallback(std::bind(
+                &IpFragment::startIpfragProc, &ip, _1, _2, _3));
+        caps[0]->setFilter("ip");
+        caps[0]->startLoop(0);
     }
 }

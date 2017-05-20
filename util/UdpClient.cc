@@ -20,7 +20,7 @@ UdpClient::UdpClient(const InetAddress& srvaddr, const std::string& name)
         LOG_SYSFATAL << "socket error";
     }
 
-    LOG_INFO << "["<< name << "] " << srvaddr.toIpPort();
+    LOG_INFO << "["<< name << "] ";
 }
 
 void UdpClient::bind(const muduo::net::InetAddress& cliaddr)

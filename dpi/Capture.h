@@ -39,7 +39,7 @@ public:
     // not thread safe, just call in signal handler
     void breakLoop();
 
-    void setFilter(const char *str);
+    void setFilter(const char *filter);
 
 private:
     pcap_t          *pcap_ = NULL;
