@@ -20,15 +20,12 @@ public:
     //same as Capture
     typedef std::function<void(ip*, int, timeval)> IpFragmentCallback;
     typedef std::function<void()> ThreadInitCallback;
-    typedef std::function<void()> Task;
 
     explicit
     Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback &cb);
     ~Dispatcher();
 
     void onIpFragment(const ip*, int, timeval);
-
-    void runTask(const Task&);
 
 private:
 

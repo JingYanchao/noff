@@ -16,7 +16,6 @@ using std::placeholders::_3;
 Capture::Capture(const char *deviceName, int snaplen, bool promisc, int msTimeout)
         :name_(deviceName),
          isLive(true)
-
 {
     pcap_ = pcap_open_live(deviceName, snaplen, promisc, msTimeout, errBuf_);
 
@@ -103,9 +102,9 @@ void Capture::breakLoop()
     pcap_breakloop(pcap_);
 }
 
-void Capture::setFilter(const char *str)
+void Capture::setFilter(const char *filter)
 {
-    if (pcap_compile(pcap_, &filter_, str, 1, 0) < 0)
+    if (pcap_compile(pcap_, &filter_, filter, 1, 0) < 0)
     {
         LOG_ERROR << "pcap compile: " << pcap_geterr(pcap_);
         exit(1);

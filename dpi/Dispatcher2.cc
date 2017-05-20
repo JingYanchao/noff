@@ -1,5 +1,5 @@
 //
-// Created by root on 17-4-13.
+// Created by root on 17-5-20.
 //
 
 #include <netinet/in.h>
@@ -12,7 +12,7 @@
 #include <muduo/base/ThreadLocalSingleton.h>
 
 #include "IpFragment.h"
-#include "Dispatcher.h"
+#include "Dispatcher2.h"
 #include "Sharding.h"
 
 namespace
@@ -23,30 +23,29 @@ Sharding shard;
 };
 
 
-Dispatcher::Dispatcher(u_int nWorkers, u_int queueSize, const ThreadInitCallback& cb )
-    :nWorkers_(nWorkers),
-     threadInitCallback_(cb),
-     taskCounter_(nWorkers_)
+Dispatcher2::Dispatcher2(u_int nWorkers, const ThreadInitCallback& cb )
+        :nWorkers_(nWorkers),
+         threadInitCallback_(cb),
+         taskCounter_(nWorkers_)
 {
     workers_.reserve(nWorkers_);
     for (size_t i = 0; i < nWorkers_; ++i)
     {
         char name[32];
         snprintf(name, sizeof name, "%s%lu", "worker", i + 1);
-        workers_.emplace_back(new TaskQueue(name));
+        workers_.emplace_back(new TaskQueue2(name));
         workers_[i]->setThreadInitCallback(cb);
-        workers_[i]->setMaxQueueSize(queueSize);
         workers_[i]->start();
     }
 
-    LOG_INFO << "Dispatcher: started, " << nWorkers_ << " workers";
+    LOG_INFO << "Dispatcher2: started, " << nWorkers_ << " workers";
 }
 
-Dispatcher::~Dispatcher()
+Dispatcher2::~Dispatcher2()
 {
     for (size_t i = 0; i < nWorkers_; ++i) {
         LOG_INFO << workers_[i]->name() << ": "
-                  << taskCounter_[i];
+                 << taskCounter_[i];
     }
 
     /* not neccesarry */
@@ -55,7 +54,7 @@ Dispatcher::~Dispatcher()
 //    }
 }
 
-void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
+void Dispatcher2::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 {
     if (len < hdr->ip_hl * 4) {
         LOG_WARN << "Dispatcher: " << "IP fragment too short";
@@ -78,24 +77,7 @@ void Dispatcher::onIpFragment(const ip *hdr, int len, timeval timeStamp)
 
     auto& worker = *workers_[index];
 
-    // necessary malloc and memcpy
-    ip *copiedIpFragment = (ip*) malloc(len);
-    if (copiedIpFragment == NULL) {
-        LOG_FATAL << "Dispatcher: malloc failed";
-    }
-    memmove(copiedIpFragment, hdr, len);
+    worker.append(hdr, len, timeStamp);
 
-    // should not block
-    bool success = worker.nonBlockingRun([=]() {
-        auto &ip = muduo::ThreadLocalSingleton<IpFragment>::instance();
-        ip.startIpfragProc(copiedIpFragment, len, timeStamp);
-        free(copiedIpFragment);
-    });
-
-    if (!success) {
-        LOG_WARN << "Dispatcher: " << worker.name() << " overloaded";
-    }
-    else {
-        ++taskCounter_[index];
-    }
+    ++taskCounter_[index];
 }

@@ -18,7 +18,7 @@ class TaskQueue : muduo::noncopyable
 public:
     typedef std::function<void ()> Task;
 
-    explicit TaskQueue(const muduo::string& nameArg = muduo::string("ThreadPool"));
+    explicit TaskQueue(const muduo::string& name);
     ~TaskQueue();
 
     // Must be called before start().
