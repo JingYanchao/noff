@@ -67,7 +67,6 @@ void sigHandler(int)
     if (running) {
         running = false;
     }
-    exit(0);
 }
 
 #define threadInstance(Type) \
@@ -286,7 +285,7 @@ int main(int argc, char **argv)
                 caps[i]->addIpFragmentCallback(std::bind(
                         &IpFragment::startIpfragProc, &ip, _1, _2, _3));
                 caps[i]->setFilter("ip");
-                caps[i]->startLoop(0);
+                caps[i]->startLoop(1);
             });
         }
 
@@ -308,6 +307,6 @@ int main(int argc, char **argv)
         caps[0]->addIpFragmentCallback(std::bind(
                 &IpFragment::startIpfragProc, &ip, _1, _2, _3));
         caps[0]->setFilter("ip");
-        caps[0]->startLoop(0);
+        caps[0]->startLoop(1);
     }
 }

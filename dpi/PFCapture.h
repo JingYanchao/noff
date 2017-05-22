@@ -11,7 +11,7 @@
 #include <netinet/ip.h>
 #include <vector>
 
-class PFCapture
+class PFCapture : muduo::noncopyable
 {
 public:
 public:
@@ -19,6 +19,7 @@ public:
     typedef std::function<void(ip *, int, timeval)> IpFragmentCallback;
 
     PFCapture(const std::string& deviceAndQueue, int snaplen, bool isLoopback);
+    ~PFCapture();
 
     void startLoop(int packetCount);
 

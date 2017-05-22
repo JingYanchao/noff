@@ -17,11 +17,11 @@ PFCapture::PFCapture(const std::string &deviceAndQueue, int snaplen, bool isLoop
 {
     cap_ = pfring_open(deviceAndQueue.c_str(), snaplen, PF_RING_PROMISC);
     if (cap_ == NULL) {
-        LOG_FATAL << "open" << deviceAndQueue << "failed";
+        LOG_FATAL << "open " << deviceAndQueue << "failed";
     }
 
     if (pfring_enable_ring(cap_) != 0) {
-        LOG_FATAL << "enable ring" << deviceAndQueue <<"error";
+        LOG_FATAL << "enable ring " << deviceAndQueue <<"error";
     }
 
     linkType_ = isLoopback ? DLT_LINUX_SLL : DLT_EN10MB;
@@ -30,6 +30,14 @@ PFCapture::PFCapture(const std::string &deviceAndQueue, int snaplen, bool isLoop
 
     addPacketCallBack(std::bind(
             &PFCapture::onPacket, this, _1, _2, _3));
+}
+
+PFCapture::~PFCapture()
+{
+    if (running_) {
+        breakLoop();
+    }
+    logCaptureStats();
 }
 
 void PFCapture::startLoop(int packetCount)
@@ -47,7 +55,6 @@ void PFCapture::startLoop(int packetCount)
         LOG_ERROR << "PFCapture: pfring loop";
     }
 
-    logCaptureStats();
     running_ = false;
 }
 
@@ -57,7 +64,6 @@ void PFCapture::breakLoop()
     running_ = false;
 
     pfring_breakloop(cap_);
-    logCaptureStats();
 }
 
 void PFCapture::setFilter(const char *filter)
