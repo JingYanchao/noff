@@ -11,11 +11,13 @@
 #include <time.h>
 struct tcpheader
 {
+    timeval timeStamp;
     unsigned int srcIP;
     unsigned int dstIP;
     unsigned short srcPort;
     unsigned short dstPort;
-    char flag;
+    u_int8_t flag;
+    int      len;
 };
 class TcpHeader
 {

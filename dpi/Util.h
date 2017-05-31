@@ -83,6 +83,27 @@ struct tuple4
     }
 };
 
+inline std::string to_string(const tuple4& t4)
+{
+    std::string ret;
+    char addr[INET_ADDRSTRLEN];
+
+    inet_ntop(AF_INET,&t4.saddr, addr, INET_ADDRSTRLEN);
+    ret.append(addr);
+
+    ret.append("\t");
+    ret.append(std::to_string(t4.source));
+
+    ret.append("\t");
+    inet_ntop(AF_INET, &t4.daddr, addr, INET_ADDRSTRLEN);
+    ret.append(addr);
+
+    ret.append("\t");
+    ret.append(std::to_string(t4.dest));
+
+    return ret;
+}
+
 inline int before(u_int seq1, u_int seq2)
 {
     return ((int)(seq1 - seq2) < 0);
