@@ -35,8 +35,6 @@ struct Skbuff
     u_int ack;
 };
 
-
-
 struct HalfStream
 {
     char state;
@@ -59,8 +57,6 @@ struct HalfStream
     u_int wscale;
     std::list<Skbuff> fraglist;
 };
-
-
 
 struct TcpStream
 {

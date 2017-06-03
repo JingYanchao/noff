@@ -73,6 +73,12 @@ string to_string(const HttpRequest &rqst)
     buffer.append("\t");
     buffer.append(getVaule(rqst.headers, "user-agent"));
 
+    // content-type
+    if (rqst.method == "POST") {
+        buffer.append("\t");
+        buffer.append(getVaule(rqst.headers, "content-type"));
+    }
+
     return buffer;
 }
 

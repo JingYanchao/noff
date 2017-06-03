@@ -206,7 +206,7 @@ void initInThread()
     setDnsCounterInThread();
 
     // tcp->udp
-    setTcpHeaderInThread();
+   //  setTcpHeaderInThread();
 }
 
 int main(int argc, char **argv)
